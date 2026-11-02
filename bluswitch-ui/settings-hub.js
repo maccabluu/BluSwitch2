@@ -6,7 +6,6 @@ var options=[
  ['readiness','Switch 2 readiness check','Check your AYN Thor, graphics driver, memory and game access','✓'],
  ['advanced','Advanced settings','System, graphics, audio and gameplay options','⚙'],
  ['app','App Settings','Appearance, language and application options','▣'],
- ['controls','Controls','Map physical buttons and touch input','⊞'],
  ['profiles','Profile Manager','Add, choose, edit and remove console profiles','◉'],
  ['drivers','GPU driver manager','Install or select a compatible graphics driver','◈'],
  ['freedreno','Freedreno Settings','Adjust the installed Adreno graphics driver','◇'],
