@@ -555,8 +555,8 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
-        @JavascriptInterface fun pickCover(index: Int) { handler.post { pickCover(index) } }
-        @JavascriptInterface fun resetCover(index: Int) { handler.post { resetCover(index) } }
+        @JavascriptInterface fun pickCover(index: Int) { handler.post { this@BluSwitchHomeActivity.pickCover(index) } }
+        @JavascriptInterface fun resetCover(index: Int) { handler.post { this@BluSwitchHomeActivity.resetCover(index) } }
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
