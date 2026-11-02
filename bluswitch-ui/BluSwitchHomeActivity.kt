@@ -438,7 +438,71 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         refreshGames()
     }
 
+
+    // Read the official ForTheUsers Switch homebrew catalogue off the UI thread.
+    // Homebrew archives are downloads only: the current NX2 core cannot execute NRO apps.
+    @Volatile private var homebrewNames: Set<String> = emptySet()
+    private fun fetchHomebrewCatalogue() {
+        io.execute {
+            val result = JSONObject()
+            try {
+                val conn = (java.net.URL("https://switch.cdn.fortheusers.org/repo.json")
+                    .openConnection() as java.net.HttpURLConnection)
+                conn.connectTimeout = 12000
+                conn.readTimeout = 12000
+                conn.instanceFollowRedirects = true
+                try {
+                    if (conn.responseCode != 200) throw IllegalStateException("Store HTTP " + conn.responseCode)
+                    val json = conn.inputStream.bufferedReader().use { it.readText() }
+                    if (json.length > 8_000_000) throw IllegalStateException("Store catalogue is too large")
+                    val data = JSONObject(json)
+                    val packages = data.getJSONArray("packages")
+                    val names = mutableSetOf<String>()
+                    for (i in 0 until packages.length()) {
+                        val pkg = packages.optJSONObject(i) ?: continue
+                        val name = pkg.optString("name")
+                        if (name.matches(Regex("[A-Za-z0-9_.-]{1,120}"))) names.add(name)
+                    }
+                    homebrewNames = names
+                    result.put("packages", packages)
+                } finally {
+                    conn.disconnect()
+                }
+            } catch (ex: Exception) {
+                result.put("error", ex.message ?: "Connection failed")
+            }
+            notifyUi("setStoreCatalog", result.toString())
+        }
+    }
+
+    private fun downloadHomebrew(name: String) {
+        // Only packages found in the live official catalogue may be downloaded.
+        if (name !in homebrewNames || !name.matches(Regex("[A-Za-z0-9_.-]{1,120}"))) {
+            notifyUi("onAction", "Refresh the Homebrew Store before downloading.")
+            return
+        }
+        try {
+            val url = android.net.Uri.parse("https://switch.cdn.fortheusers.org/zips/" +
+                android.net.Uri.encode(name) + ".zip")
+            val request = android.app.DownloadManager.Request(url)
+                .setTitle(name + " · BluSwitch 2 Homebrew")
+                .setDescription("Homebrew package from ForTheUsers")
+                .setMimeType("application/zip")
+                .setNotificationVisibility(
+                    android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(
+                    android.os.Environment.DIRECTORY_DOWNLOADS, "BluSwitch2-" + name + ".zip")
+            val manager = getSystemService(DOWNLOAD_SERVICE) as android.app.DownloadManager
+            manager.enqueue(request)
+            notifyUi("onAction", "Homebrew ZIP download added to Android Downloads. NRO execution is not yet supported.")
+        } catch (ex: Exception) {
+            notifyUi("onAction", "Download could not start: " + (ex.message ?: "Unknown error"))
+        }
+    }
+
     inner class Bridge {
+        @JavascriptInterface fun requestStoreCatalog() { handler.post { fetchHomebrewCatalogue() } }
+        @JavascriptInterface fun downloadHomebrew(name: String) { handler.post { downloadHomebrew(name) } }
         @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
