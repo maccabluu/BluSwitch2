@@ -81,3 +81,14 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .device-stats .setting-card{min-width:155px;flex:1 1 150px;max-width:280px}
 .device-stats .setting-card span{overflow-wrap:anywhere}
 @media(max-height:475px){.device-panel .setting-card{padding:7px}.device-panel .setting-card small{display:none}.device-panel{gap:5px}}
+
+
+/* BluBox-inspired custom retail-style cover image controls */
+.cover-edit,.cover-reset{
+ position:absolute;z-index:3;bottom:7px;right:7px;border:1px solid #a8d6ff;
+ border-radius:10px;padding:4px 7px;font-size:clamp(10px,1.6vh,12px);
+ color:#fff;background:#06488fe0;font-weight:700;
+}
+.cover-reset{right:auto;left:7px;background:#133864dd}
+.game-card .game-label{bottom:26px}
+@media(max-height:470px){.cover-edit,.cover-reset{padding:2px 5px}.game-card .game-label{bottom:21px}}
