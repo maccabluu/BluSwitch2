@@ -2,6 +2,9 @@
 'use strict';
 var games = [], current = 'home', error = '', busy = true;
 var libraryView = 'covers', libraryFilter = 'all';
+var deviceStatus = { battery: null, charging: false, batteryTemp: null, thermal: 'Unknown' };
+var controllerTest = { device: 'No controller input yet', button: 'Press a button', pressed: false, lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0 };
+
 var nav = [
   ['home','Library','gamepad','#9838ee'],
   ['collections','Collections','layers','#ff8b00'],
@@ -110,6 +113,28 @@ function renderSettings() {
  '<div class="action-row">'+actionButton('Import my prod.keys','importKeys')+actionButton('Add game folder','addFolder',true)+actionButton('Check again','checkStatus',true)+'</div>'+
  '<p class="notice">Use files dumped from hardware you own. Your keys stay on your device and are never uploaded.</p></section>';
 }
+function renderDeviceInfo() {
+ var charge = deviceStatus.battery === null ? 'Not available' : safe(deviceStatus.battery) + '%';
+ var temp = deviceStatus.batteryTemp === null ? 'Not available' : safe(Number(deviceStatus.batteryTemp).toFixed(1)) + ' °C';
+ return '<section class="screen-panel device-panel"><h1>Handheld performance hub</h1><p>Live Android readings from your handheld. Battery temperature is not CPU or GPU temperature.</p>'+
+  '<div class="device-stats">'+
+  '<div class="setting-card"><strong>Battery</strong><span>'+charge+'</span><small>'+(deviceStatus.charging?'Charging':'Not charging')+'</small></div>'+
+  '<div class="setting-card"><strong>Battery temperature</strong><span>'+temp+'</span><small>Android battery sensor</small></div>'+
+  '<div class="setting-card"><strong>Thermal status</strong><span>'+safe(deviceStatus.thermal)+'</span><small>Reported by Android</small></div>'+
+  '</div><div class="action-row">'+actionButton('Refresh readings','refreshDevice')+'</div></section>';
+}
+function renderControllerTest() {
+ function axis(v) { return Number(v||0).toFixed(2); }
+ return '<section class="screen-panel device-panel"><h1>Controller tester</h1>'+
+  '<p>Press the buttons and move the sticks on your AYN Thor. BluSwitch 2 reads Android gamepad input without changing your controller mapping.</p>'+
+  '<div class="device-stats">'+
+  '<div class="setting-card"><strong>Connected controller</strong><span>'+safe(controllerTest.device)+'</span></div>'+
+  '<div class="setting-card"><strong>Last button</strong><span>'+safe(controllerTest.button)+'</span><small>'+(controllerTest.pressed?'Pressed':'Released')+'</small></div>'+
+  '<div class="setting-card"><strong>Left stick</strong><span>X '+axis(controllerTest.lx)+' · Y '+axis(controllerTest.ly)+'</span></div>'+
+  '<div class="setting-card"><strong>Right stick</strong><span>X '+axis(controllerTest.rx)+' · Y '+axis(controllerTest.ry)+'</span></div>'+
+  '<div class="setting-card"><strong>Triggers</strong><span>L '+axis(controllerTest.lt)+' · R '+axis(controllerTest.rt)+'</span></div>'+
+  '</div><div class="action-row">'+actionButton('Back to library','home')+'</div></section>';
+}
 function render() {
  renderDock();
  var view=document.getElementById('main-view');
@@ -120,14 +145,28 @@ function render() {
  else if(current==='store')view.innerHTML=section('Store','BluSwitch 2 does not have a game store. Add your own legally obtained game files using Files.',actionButton('Open Files','files'));
  else if(current==='media')view.innerHTML=section('Media','Media capture management is not available yet. This screen is part of BluSwitch 2 and will not open another emulator.',actionButton('Back to library','home'));
  else if(current==='saves')view.innerHTML=section('Saves','The emulator stores game saves in its app data. Save browsing and backup controls are not available in this version.',actionButton('Back to library','home'));
- else if(current==='controller')view.innerHTML=section('Controller','BluSwitch 2 uses the emulator core for controls. Dedicated AYN Thor controller mapping from this screen is still being developed.',actionButton('Back to library','home'));
- else if(current==='handheld')view.innerHTML=section('Handheld Mode','BluSwitch 2 is running in landscape handheld mode. Native gameplay graphics and input settings are controlled by the emulator engine.',actionButton('Back to library','home'));
+ else if(current==='controller')view.innerHTML=renderControllerTest();
+ else if(current==='handheld')view.innerHTML=renderDeviceInfo();
  else view.innerHTML=library(false);
 }
 window.BluSwitch = {
  setFilter:function(mode){if(mode==='all'||mode==='recent'){libraryFilter=mode;render();}},
  allGames:function(){libraryFilter='all';render();},
  setView:function(mode){if(mode==='covers'||mode==='grid'){libraryView=mode;render();}},
+ setDevice:function(json){
+  try{deviceStatus=JSON.parse(json);var batteryLabel=document.getElementById('battery-percent');
+   if(batteryLabel)batteryLabel.textContent=deviceStatus.battery===null?'':String(deviceStatus.battery)+'%'+(deviceStatus.charging?' +':'');
+   if(current==='handheld')render();
+  }catch(e){}
+ },
+ controllerInput:function(json){
+  try{var event=JSON.parse(json);if(event.device)controllerTest.device=event.device;
+   if(event.type==='key'){controllerTest.button=event.button;controllerTest.pressed=!!event.pressed;}
+   if(event.type==='axis'){['lx','ly','rx','ry','lt','rt'].forEach(function(k){if(typeof event[k]==='number')controllerTest[k]=event[k];});}
+   if(current==='controller')render();
+  }catch(e){}
+ },
+ refreshDevice:function(){nativeCall('requestDeviceStatus');},
  setGames:function(json) {
   try { games=JSON.parse(json); busy=false; error=''; render(); }
   catch(e) {this.showError('Could not load your game list.');}
@@ -155,11 +194,14 @@ window.BluSwitch = {
    if(confirm('Exit BluSwitch 2?'))nativeCall('exit');return;
   }
   current=id;render();
+  nativeCall('setControllerTestActive',id==='controller');
+  if(id==='handheld')nativeCall('requestDeviceStatus');
  }
 };
 document.addEventListener('DOMContentLoaded',function(){
  updateClock();setInterval(updateClock,30000);render();
  nativeCall('requestGames');
  nativeCall('requestStatus');
+ nativeCall('requestDeviceStatus');
 });
 })();
