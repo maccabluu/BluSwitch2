@@ -51,6 +51,7 @@ function card(g) {
  return '<article class="game-card">'+art+
  '<div class="game-label">'+safe(g.title)+'</div>'+
  '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Open</button>'+
+ '<button class="game-check" aria-label="Check game boot for '+safe(g.title)+'" onclick="BluSwitch.diagnose('+g.index+')">Check boot</button>'+
  '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button></article>';
 }
 function library(showFavorites) {
@@ -204,6 +205,7 @@ window.BluSwitch = {
  showError:function(message) { error=message;busy=false;render(); },
  refresh:function(){ busy=true;render();nativeCall('requestGames'); },
  play:function(index){nativeCall('launchGame',index);},
+ diagnose:function(index){nativeCall('diagnoseGame',index);},
  favorite:function(index){nativeCall('favorite',index);},
  addFolder:function(){nativeCall('pickGameFolder');},
  launchExeFSFolder:function(){nativeCall('launchExeFSFolder');},
