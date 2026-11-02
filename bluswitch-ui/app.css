@@ -62,3 +62,12 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .folder-row span{font-size:12px;overflow-wrap:anywhere;min-width:0}
 .screen-panel{width:100%;max-width:1000px;margin:0 auto;padding:10px 2px}
 @media(max-height:500px){.settings-grid{gap:7px}.setting-card{padding:7px}.screen-panel{gap:7px}.screen-panel .notice{padding:7px 10px;margin:0}}
+
+
+/* Library improvements adapted from useful BluPS2 features. */
+.library-tools{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px}
+.library-tools button{border:0;border-radius:9px;padding:6px 8px;background:#e7f1ff;color:#23548f;font-size:clamp(10px,1.8vh,13px);font-weight:700}
+.library-tools button.selected{background:#0d72e6;color:white}
+.game-strip.game-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(110px,17vw,175px),1fr));gap:clamp(8px,1.5vw,16px);overflow-x:hidden;overflow-y:auto;scroll-snap-type:none;max-height:100%;padding:6px}
+.game-strip.game-grid .game-card{height:clamp(120px,26vh,205px);width:100%;scroll-snap-align:none}
+@media(max-height:475px){.library-tools button{padding:3px 6px}.carousel-meta{margin-bottom:3px}.game-strip.game-grid .game-card{height:27vh}}
