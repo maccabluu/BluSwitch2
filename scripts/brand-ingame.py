@@ -40,7 +40,7 @@ drawable.mkdir(parents=True, exist_ok=True)
 
 xml = layout.read_text()
 # Keep the same NavigationView IDs: native EmulationFragment keeps every menu action.
-pattern = r'(<com\\.google\\.android\\.material\\.navigation\\.NavigationView\\s+[^>]*android:id="@\\+id/in_game_menu"[^>]*)(/>)'
+pattern = r'(<com\.google\.android\.material\.navigation\.NavigationView\s+[^>]*android:id="@\+id/in_game_menu"[^>]*)(/>)'
 match = re.search(pattern, xml)
 assert match, "Could not locate native in_game_menu for BluSwitch styling"
 native_drawer = match.group(1)
