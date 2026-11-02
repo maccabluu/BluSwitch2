@@ -33,6 +33,7 @@ import org.yuzu.yuzu_emu.utils.DirectoryInitialization
 import org.yuzu.yuzu_emu.utils.GameHelper
 import org.yuzu.yuzu_emu.utils.GameMetadata
 import org.yuzu.yuzu_emu.utils.NativeConfig
+import org.yuzu.yuzu_emu.utils.PathUtil
 import org.yuzu.yuzu_emu.utils.ThemeHelper
 
 /** The new single-APK BluSwitch 2 launcher, using the actual native emulator core. */
@@ -42,6 +43,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private val io = Executors.newSingleThreadExecutor()
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
+    private val settingsActions = BluSettingsActions(this)
 
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
     private val gameFolderPicker =
@@ -58,6 +60,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                                 notifyUi("onAction", "This game folder is already in your library.")
                             } else {
                                 NativeConfig.addGameDir(GameDir(uri.toString(), true))
+                                NativeConfig.saveGlobalConfig() // Persist across EmulationActivity.reloadGlobalConfig()
                                 notifyUi("onAction", "Game folder added to BluSwitch 2.")
                             }
                             refreshStatus()
@@ -71,6 +74,103 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 }
             }
         }
+
+    // Persist single-file imports separately from upstream scanned game folders.
+    // SharedPreferences and SAF grants survive closing a game and normal APK upgrades.
+    private val singleGamePicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                    val files = getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
+                    val saved = (files.getStringSet("uris", emptySet()) ?: emptySet()).toMutableSet()
+                    saved.add(uri.toString())
+                    files.edit().putStringSet("uris", saved).apply()
+                    notifyUi("onAction", "Game file saved in your BluSwitch 2 library.")
+                } catch (ex: Exception) {
+                    notifyUi("onAction", "Could not save game file access: " + (ex.message ?: "Permission denied"))
+                }
+            }
+        }
+
+    private fun importedGameUris(): List<String> =
+        (getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
+            .getStringSet("uris", emptySet()) ?: emptySet()).sorted()
+
+    private fun removeImportedGame(index: Int) {
+        val files = importedGameUris()
+        if (index !in files.indices) return
+        val old = files[index]
+        val remaining = files.toMutableSet()
+        remaining.remove(old)
+        getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
+            .edit().putStringSet("uris", remaining).apply()
+        notifyUi("onAction", "Game file removed from the BluSwitch library, not from your device.")
+    }
+
+    // Launch loose Switch 2 ExeFS game directories using the native supported path.
+    // This is a real game launch, not an NSP/XCI compatibility claim.
+    private val exeFSFolderPicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) launchExeFSFolder(uri)
+        }
+
+    private fun launchExeFSFolder(uri: android.net.Uri) {
+        if (android.os.Build.VERSION.SDK_INT >= 30 &&
+            !android.os.Environment.isExternalStorageManager()) {
+            AlertDialog.Builder(this).setTitle("Storage access needed")
+                .setMessage("Switch 2 loose game folders need Android All files access. Enable access for BluSwitch 2, then choose your game folder again.")
+                .setPositiveButton("Open access settings") { _, _ ->
+                    try {
+                        startActivity(Intent(
+                            android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            android.net.Uri.parse("package:" + packageName)
+                        ))
+                    } catch (_: Exception) {
+                        startActivity(Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                    }
+                }
+                .setNegativeButton("Cancel", null).show()
+            return
+        }
+        val path = PathUtil.getPathFromUri(uri)
+        if (path == null) {
+            AlertDialog.Builder(this).setTitle("Game folder not found")
+                .setMessage("Choose a folder stored locally on your handheld containing exefs/main and romfs. Cloud-only folders are not supported.")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        io.execute {
+            try {
+                val games = GameHelper.findExeFSGames(File(path))
+                runOnUiThread {
+                    if (closing) return@runOnUiThread
+                    when (games.size) {
+                        0 -> AlertDialog.Builder(this).setTitle("No launchable game")
+                            .setMessage("No exefs/main file was found in this folder. The native Switch 2 loader needs an extracted game folder containing exefs and romfs.")
+                            .setPositiveButton("OK", null).show()
+                        1 -> startNativeGame(games.first())
+                        else -> AlertDialog.Builder(this)
+                            .setTitle("Choose Switch 2 game")
+                            .setItems(games.map { it.title }.toTypedArray()) { _, index ->
+                                startNativeGame(games[index])
+                            }.setNegativeButton("Cancel", null).show()
+                    }
+                }
+            } catch (ex: Exception) {
+                notifyUi("onAction", "Cannot read this game folder: " + (ex.message ?: "Invalid folder"))
+            }
+        }
+    }
+
+    private fun startNativeGame(game: Game) {
+        val settings = PreferenceManager.getDefaultSharedPreferences(this)
+        settings.edit().putLong(game.keyLastPlayedTime, System.currentTimeMillis()).apply()
+        // The original upstream Game.launchIntent handles loose ExeFS paths and ordinary files.
+        startActivity(game.launchIntent)
+    }
 
     private val prodKeysPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -153,6 +253,25 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 val dirs = JSONArray()
                 NativeConfig.getGameDirs().forEach { dirs.put(it.uriString) }
                 state.put("folders", dirs)
+                val imported = JSONArray()
+                importedGameUris().forEach { path ->
+                    val fileUri = android.net.Uri.parse(path)
+                    val file = DocumentFile.fromSingleUri(this, fileUri)
+                    val item = JSONObject()
+                    item.put("name", try { file?.name ?: fileUri.lastPathSegment ?: "Game file" }
+                        catch (_: Exception) { "Game file" })
+                    val available = try { file?.exists() == true } catch (_: Exception) { false }
+                    item.put("available", available)
+                    if (available) {
+                        val details = SwitchContainerInspector.inspect(this, fileUri)
+                        item.put("format", details.optString("format", "Unknown"))
+                        item.put("structure", details.optString("structure", "Not checked"))
+                        item.put("contents", details.optString("contents", ""))
+                        item.put("note", details.optString("note", ""))
+                    }
+                    imported.put(item)
+                }
+                state.put("files", imported)
                 notifyUi("setStatus", state.toString())
             } catch (ex: Exception) {
                 notifyUi("onAction", "Could not check setup status.")
@@ -167,6 +286,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 if (index !in dirs.indices) return@execute
                 dirs.removeAt(index)
                 NativeConfig.setGameDirs(dirs.toTypedArray())
+                NativeConfig.saveGlobalConfig()
                 notifyUi("onAction", "Game folder removed from library. Files were not deleted.")
                 refreshStatus()
                 refreshGames()
@@ -234,7 +354,20 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
         io.execute {
             try {
-                val found = GameHelper.getGames()
+                val found = GameHelper.getGames().toMutableList()
+                // SAF file imports are not part of GameHelper's folder scanner.
+                // Re-add valid selections from persistent storage after every native scan.
+                importedGameUris().forEach { path ->
+                    try {
+                        if (found.none { it.path == path }) {
+                            val uri = android.net.Uri.parse(path)
+                            if (DocumentFile.fromSingleUri(this, uri)?.exists() == true) {
+                                val selected = GameHelper.getGame(uri, true)
+                                if (selected != null) found.add(selected)
+                            }
+                        }
+                    } catch (_: Exception) { /* Retain saved selection for later retry */ }
+                }
                 currentGames = found
                 val favorites = getSharedPreferences("bluswitch_home", MODE_PRIVATE)
                     .getStringSet("favorites", emptySet()) ?: emptySet()
@@ -283,10 +416,9 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         val run = {
             val prefs = PreferenceManager.getDefaultSharedPreferences(this)
             prefs.edit().putLong(game.keyLastPlayedTime, System.currentTimeMillis()).apply()
-            val intent = Intent(this, EmulationActivity::class.java)
-            intent.putExtra("game", game)
-            intent.putExtra("custom", true)
-            startActivity(intent)
+            // Native core expects EXTRA_SELECTED_GAME ("SelectedGame"), not "game".
+            // Use the upstream launcher so the actual game reaches EmulationFragment.
+            startNativeGame(game)
         }
         if (NativeLibrary.gameRequiresFirmware(game.programId) &&
             !NativeLibrary.isFirmwareAvailable()) {
@@ -311,8 +443,20 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
+        @JavascriptInterface fun launchExeFSFolder() {
+            handler.post { exeFSFolderPicker.launch(null) }
+        }
+        @JavascriptInterface fun pickGameFile() {
+            handler.post { singleGamePicker.launch(arrayOf("*/*")) }
+        }
+        @JavascriptInterface fun removeGameFile(index: Int) {
+            handler.post { removeImportedGame(index) }
+        }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
+        @JavascriptInterface fun openSetting(id: String) {
+            handler.post { if (!closing) settingsActions.open(id) }
+        }
         @JavascriptInterface fun requestStorageAccess() {
             handler.post {
                 if (android.os.Build.VERSION.SDK_INT >= 30 &&
@@ -346,6 +490,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         closing = true
+        settingsActions.close()
         io.shutdownNow()
         browser.removeJavascriptInterface("BluNative")
         browser.destroy()
