@@ -9,7 +9,7 @@ const js = fs.readFileSync('bluswitch-ui/app.js','utf8');
 const branding = fs.readFileSync('scripts/brand-ingame.py','utf8');
 const workflow = fs.readFileSync('.github/workflows/bluswitch2-native-android.yml','utf8');
 
-assert(kt.includes('EmulationActivity.launch(this, game)'), 'Game launcher must use native SelectedGame extra');
+assert(kt.includes('startActivity(game.launchIntent)'), 'Game launcher must use the upstream Game.launchIntent, including ExeFS paths');
 assert(!kt.includes('intent.putExtra("game", game)'), 'Old incorrect game extra remains');
 assert(/NativeConfig\.addGameDir\(GameDir\(uri\.toString\(\), true\)\)\s*NativeConfig\.saveGlobalConfig\(\)/.test(kt),
   'Imported game folders must be persisted before native config reload');
