@@ -478,6 +478,83 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
     }
 
+
+    /**
+     * Inspect the actual selected file before asking the emulator core to load it.
+     * Switch 2 NSP/XCI is not supported by the current NX2 native loader even if
+     * the older Switch metadata reader shows the game in the home library.
+     */
+    private fun diagnoseGame(index: Int) {
+        val game = currentGames.getOrNull(index) ?: return
+        io.execute {
+            val uri = android.net.Uri.parse(game.path)
+            val filename = try {
+                if (uri.scheme == "content") {
+                    DocumentFile.fromSingleUri(this, uri)?.name ?: game.title
+                } else {
+                    File(uri.path ?: game.path).name.ifBlank { game.title }
+                }
+            } catch (_: Exception) { game.title }
+            val ext = filename.substringAfterLast('.', "").lowercase()
+            val available = try {
+                when (uri.scheme) {
+                    "content" -> DocumentFile.fromSingleUri(this, uri)?.exists() == true
+                    "file" -> uri.path?.let { File(it).exists() } == true
+                    null -> File(game.path).exists()
+                    else -> false
+                }
+            } catch (_: Exception) { false }
+
+            val report = StringBuilder()
+            report.append("Game: ").append(game.title.take(120)).append("\n")
+            report.append("Selected file: ").append(filename.take(140)).append("\n")
+            report.append("File access: ").append(if (available) "Available" else "Missing or blocked").append("\n\n")
+            if (!available) {
+                report.append("Reconnect this file from the Files tab. Android needs permission to read it.")
+            } else if (ext == "nsp" || ext == "xci") {
+                report.append("Format: ").append(ext.uppercase()).append("\n")
+                if (uri.scheme == "content") {
+                    val inspected = SwitchContainerInspector.inspect(this, uri)
+                    report.append("Container: ")
+                        .append(inspected.optString("structure", "Not checked")).append("\n")
+                }
+                report.append("\nSwitch 2 NSP/XCI launching is not supported by this engine. ")
+                report.append("A game appearing in your library does not mean it can boot. ")
+                report.append("For a Switch 2 game such as Pokopia, you need your own extracted game folder ")
+                report.append("with exefs/main and romfs. Original Switch games may work from these formats.")
+            } else if (ext == "nup") {
+                report.append("Format: NUP\n")
+                report.append("The current NX2 core has experimental NUP support. ")
+                report.append("Boot success still depends on your hardware and game version.")
+            } else if (game.path.contains("/exefs/") || filename == "main") {
+                report.append("Looks like an extracted ExeFS game. ")
+                report.append("The extracted game's parent folder also needs romfs. ")
+                report.append("Use the extracted game folder button if the direct launch fails.")
+            } else {
+                report.append("Check the game format and try the extracted Switch 2 game folder launcher. ")
+                report.append("For Switch 2 use a folder with exefs/main and romfs.")
+            }
+            report.append("\n\nA black screen with 0 FPS can also mean long first-boot compilation, ")
+            report.append("a GPU driver issue, insufficient memory, or a core incompatibility. ")
+            report.append("Try Settings > Switch 2 readiness check and share a debug report if boot fails.")
+            runOnUiThread {
+                if (!closing && !isFinishing) {
+                    AlertDialog.Builder(this)
+                        .setTitle("BluSwitch 2 game boot check")
+                        .setMessage(report.toString())
+                        .setPositiveButton("Choose extracted folder") { _, _ ->
+                            exeFSFolderPicker.launch(null)
+                        }
+                        .setNeutralButton("Readiness check") { _, _ ->
+                            settingsActions.open("readiness")
+                        }
+                        .setNegativeButton("Close", null)
+                        .show()
+                }
+            }
+        }
+    }
+
     private fun launch(index: Int) {
         val game = currentGames.getOrNull(index) ?: return
         val uri = android.net.Uri.parse(game.path)
@@ -594,6 +671,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
         @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
+        @JavascriptInterface fun diagnoseGame(index: Int) { handler.post { this@BluSwitchHomeActivity.diagnoseGame(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
         @JavascriptInterface fun launchExeFSFolder() {
