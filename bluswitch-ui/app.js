@@ -83,8 +83,12 @@ function renderFiles() {
    return '<div class="folder-row"><span>'+safe(folder)+'</span><button class="secondary-btn" onclick="BluSwitch.removeFolder('+i+')">Remove</button></div>';
  }).join('')+'</div>' : '<p class="notice">No game folders selected.</p>';
  var fileList=files.length ? '<div class="folder-list">'+files.map(function(file,i){
-   return '<div class="folder-row"><span>'+safe(file.name)+(file.available?'':' (missing access)')+'</span>'+
-      '<button class="secondary-btn" onclick="BluSwitch.removeGameFile('+i+')">Remove</button></div>';
+   return '<div class="folder-row container-file-row"><div class="file-summary"><strong>'+safe(file.name)+'</strong>'+
+   (file.available ? '<span class="container-structure">'+safe(file.structure||'Ready to scan')+'</span>'+
+     (file.contents?'<small>'+safe(file.contents)+'</small>':'')+
+     (file.note?'<small>'+safe(file.note)+'</small>':'')
+     :'<span class="container-structure">File access missing. Reconnect the original file.</span>')+
+   '</div><button class="secondary-btn" onclick="BluSwitch.removeGameFile('+i+')">Remove</button></div>';
  }).join('')+'</div>' : '<p class="notice">No individual game files selected.</p>';
  var storage=status.ready ? (status.allFiles?'Loose ExeFS folder access enabled.':'Loose ExeFS folders may need Android All files access.') : '';
  return '<section class="screen-panel"><h1>Game files</h1>'+
