@@ -36,6 +36,8 @@ jobs:
           git add docs/screenshots/library.png docs/screenshots/favourites.png
           if ! git diff --cached --quiet; then
             git commit -m "Update BluSwitch 2 UI screenshots"
+            git fetch origin main
+            git rebase origin/main
             git push origin HEAD:main
           else
             echo "Screenshot previews have not changed"
