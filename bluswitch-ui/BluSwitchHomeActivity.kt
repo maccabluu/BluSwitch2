@@ -98,19 +98,20 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 return
             }
             val target = File(folder, "prod.keys")
-            pending = File(folder, "bluswitch-keys-import.tmp")
+            val incoming = File(folder, "bluswitch-keys-import.tmp")
+            pending = incoming
             val input = contentResolver.openInputStream(uri)
                 ?: throw IllegalArgumentException("Could not open the selected key file")
             input.use { src ->
-                pending.outputStream().use { dest -> src.copyTo(dest) }
+                incoming.outputStream().use { dest -> src.copyTo(dest) }
             }
-            if (pending.length() < 64 || pending.length() > 2_000_000) {
+            if (incoming.length() < 64 || incoming.length() > 2_000_000) {
                 throw IllegalArgumentException("The selected key file has an unexpected size")
             }
             val backup = File(folder, "bluswitch-keys-backup.tmp")
             if (target.exists()) target.copyTo(backup, overwrite = true)
             try {
-                pending.copyTo(target, overwrite = true)
+                incoming.copyTo(target, overwrite = true)
                 if (!NativeLibrary.reloadKeys()) {
                     throw IllegalArgumentException("The emulator could not load these keys")
                 }
