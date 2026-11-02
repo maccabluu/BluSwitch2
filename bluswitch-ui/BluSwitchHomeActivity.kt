@@ -229,12 +229,14 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 currentGames = found
                 val favorites = getSharedPreferences("bluswitch_home", MODE_PRIVATE)
                     .getStringSet("favorites", emptySet()) ?: emptySet()
+                val recentPrefs = PreferenceManager.getDefaultSharedPreferences(this)
                 val results = JSONArray()
                 found.forEachIndexed { position, game ->
                     val item = JSONObject()
                     item.put("index", position)
                     item.put("title", game.title)
                     item.put("favorite", favorites.contains(game.path))
+                    item.put("lastPlayed", recentPrefs.getLong(game.keyLastPlayedTime, 0L))
                     if (position < 32) {
                         try {
                             val icon = GameMetadata.getIcon(game.path)
