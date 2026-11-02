@@ -58,6 +58,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                                 notifyUi("onAction", "This game folder is already in your library.")
                             } else {
                                 NativeConfig.addGameDir(GameDir(uri.toString(), true))
+                                NativeConfig.saveGlobalConfig() // Persist across EmulationActivity.reloadGlobalConfig()
                                 notifyUi("onAction", "Game folder added to BluSwitch 2.")
                             }
                             refreshStatus()
@@ -167,6 +168,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 if (index !in dirs.indices) return@execute
                 dirs.removeAt(index)
                 NativeConfig.setGameDirs(dirs.toTypedArray())
+                NativeConfig.saveGlobalConfig()
                 notifyUi("onAction", "Game folder removed from library. Files were not deleted.")
                 refreshStatus()
                 refreshGames()
@@ -283,10 +285,9 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         val run = {
             val prefs = PreferenceManager.getDefaultSharedPreferences(this)
             prefs.edit().putLong(game.keyLastPlayedTime, System.currentTimeMillis()).apply()
-            val intent = Intent(this, EmulationActivity::class.java)
-            intent.putExtra("game", game)
-            intent.putExtra("custom", true)
-            startActivity(intent)
+            // Native core expects EXTRA_SELECTED_GAME ("SelectedGame"), not "game".
+            // Use the upstream launcher so the actual game reaches EmulationFragment.
+            EmulationActivity.launch(this, game)
         }
         if (NativeLibrary.gameRequiresFirmware(game.programId) &&
             !NativeLibrary.isFirmwareAvailable()) {
