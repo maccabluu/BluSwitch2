@@ -4,6 +4,17 @@ package org.yuzu.yuzu_emu.ui.main
 
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.Build
+import android.os.PowerManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.FileOutputStream
+import java.security.MessageDigest
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.pm.ActivityInfo
@@ -42,6 +53,224 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private val io = Executors.newSingleThreadExecutor()
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
+    @Volatile private var controllerTestActive = false
+    private val deviceTicker = object : Runnable {
+        override fun run() {
+            if (!closing) {
+                publishDeviceStatus()
+                handler.postDelayed(this, 5000)
+            }
+        }
+    }
+
+    // Battery readings come from Android, not guessed CPU or GPU temperatures.
+    private fun publishDeviceStatus() {
+        try {
+            val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            val temperature = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+            val batteryState = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val charging = batteryState == BatteryManager.BATTERY_STATUS_CHARGING ||
+                batteryState == BatteryManager.BATTERY_STATUS_FULL
+            val data = JSONObject()
+            if (level >= 0 && scale > 0) {
+                data.put("battery", (level * 100.0 / scale).toInt().coerceIn(0, 100))
+            } else data.put("battery", JSONObject.NULL)
+            if (temperature in 0..1250) data.put("batteryTemp", temperature / 10.0)
+            else data.put("batteryTemp", JSONObject.NULL)
+            data.put("charging", charging)
+            val thermal = if (Build.VERSION.SDK_INT >= 29) {
+                val manager = getSystemService(POWER_SERVICE) as? PowerManager
+                when (manager?.currentThermalStatus) {
+                    PowerManager.THERMAL_STATUS_NONE -> "Normal"
+                    PowerManager.THERMAL_STATUS_LIGHT -> "Light"
+                    PowerManager.THERMAL_STATUS_MODERATE -> "Moderate"
+                    PowerManager.THERMAL_STATUS_SEVERE -> "Severe"
+                    PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
+                    PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                    PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown"
+                    else -> "Unknown"
+                }
+            } else "Not available"
+            data.put("thermal", thermal)
+            notifyUi("setDevice", data.toString())
+        } catch (_: Exception) {
+            val data = JSONObject()
+            data.put("battery", JSONObject.NULL)
+            data.put("batteryTemp", JSONObject.NULL)
+            data.put("charging", false)
+            data.put("thermal", "Not available")
+            notifyUi("setDevice", data.toString())
+        }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (controllerTestActive && event.keyCode != KeyEvent.KEYCODE_BACK &&
+            event.keyCode != KeyEvent.KEYCODE_HOME &&
+            event.keyCode != KeyEvent.KEYCODE_VOLUME_UP &&
+            event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN &&
+            (event.isFromSource(InputDevice.SOURCE_GAMEPAD) ||
+             event.isFromSource(InputDevice.SOURCE_JOYSTICK) ||
+             event.isFromSource(InputDevice.SOURCE_DPAD))
+        ) {
+            if (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) {
+                val data = JSONObject()
+                data.put("type", "key")
+                data.put("button", KeyEvent.keyCodeToString(event.keyCode).removePrefix("KEYCODE_"))
+                data.put("pressed", event.action == KeyEvent.ACTION_DOWN)
+                data.put("device", event.device?.name ?: "Android controller")
+                notifyUi("controllerInput", data.toString())
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (controllerTestActive && event.isFromSource(InputDevice.SOURCE_JOYSTICK) &&
+            event.actionMasked == MotionEvent.ACTION_MOVE
+        ) {
+            fun axis(code: Int): Double {
+                val value = event.getAxisValue(code).toDouble()
+                return if (kotlin.math.abs(value) < 0.03) 0.0 else value
+            }
+            val data = JSONObject()
+            data.put("type", "axis")
+            data.put("device", event.device?.name ?: "Android controller")
+            data.put("lx", axis(MotionEvent.AXIS_X))
+            data.put("ly", axis(MotionEvent.AXIS_Y))
+            data.put("rx", axis(MotionEvent.AXIS_Z))
+            data.put("ry", axis(MotionEvent.AXIS_RZ))
+            data.put("lt", maxOf(axis(MotionEvent.AXIS_LTRIGGER), axis(MotionEvent.AXIS_BRAKE)))
+            data.put("rt", maxOf(axis(MotionEvent.AXIS_RTRIGGER), axis(MotionEvent.AXIS_GAS)))
+            notifyUi("controllerInput", data.toString())
+            return true
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+
+
+    // User-chosen game covers live in the app's own storage and survive APK upgrades.
+    private var pendingCoverPath: String? = null
+    private val coverPicker =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            val gamePath = pendingCoverPath
+            pendingCoverPath = null
+            if (uri != null && gamePath != null) {
+                io.execute {
+                    try {
+                        importCover(gamePath, uri)
+                        notifyUi("onAction", "New game cover saved.")
+                        refreshGames()
+                    } catch (ex: Exception) {
+                        notifyUi("onAction", "Could not save cover: " + (ex.message ?: "Invalid image"))
+                    }
+                }
+            }
+        }
+
+    private fun coverFile(path: String): File {
+        val id = MessageDigest.getInstance("SHA-256")
+            .digest(path.toByteArray(Charsets.UTF_8))
+            .take(20).joinToString("") { byte -> "%02x".format(byte) }
+        val folder = File(filesDir, "bluswitch_covers")
+        if (!folder.isDirectory && !folder.mkdirs()) {
+            throw IllegalStateException("The cover artwork folder could not be created")
+        }
+        return File(folder, "$id.jpg")
+    }
+
+    private fun importCover(path: String, uri: android.net.Uri) {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        } ?: throw IllegalArgumentException("Cannot open this image")
+        require(bounds.outWidth in 1..40000 && bounds.outHeight in 1..40000) {
+            "Choose a valid JPEG, PNG or WebP picture"
+        }
+        var sample = 1
+        while (bounds.outWidth / sample > 2304 || bounds.outHeight / sample > 2304) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bitmap = contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, options)
+        } ?: throw IllegalArgumentException("Could not decode the cover image")
+
+        var selected: Bitmap = bitmap
+        var output: Bitmap = bitmap
+        try {
+            // Match BluBox's retail wraparound cropping. Landscape images use their right-hand front panel.
+            if (bitmap.width > bitmap.height * 1.15f) {
+                val frontWidth = (bitmap.height * 0.71f).toInt().coerceIn(1, bitmap.width)
+                selected = Bitmap.createBitmap(bitmap, bitmap.width - frontWidth, 0,
+                    frontWidth, bitmap.height)
+            }
+            val edge = maxOf(selected.width, selected.height)
+            if (edge > 1024) {
+                val scale = 1024.0 / edge
+                output = Bitmap.createScaledBitmap(
+                    selected,
+                    (selected.width * scale).toInt().coerceAtLeast(1),
+                    (selected.height * scale).toInt().coerceAtLeast(1),
+                    true
+                )
+            } else output = selected
+            val destination = coverFile(path)
+            val temp = File(destination.parentFile, destination.name + ".new")
+            try {
+                FileOutputStream(temp).use { stream ->
+                    if (!output.compress(Bitmap.CompressFormat.JPEG, 82, stream)) {
+                        throw IllegalStateException("Could not compress cover")
+                    }
+                    stream.fd.sync()
+                }
+                if (temp.length() !in 1..1_000_000) {
+                    throw IllegalArgumentException("Cover size exceeds the 1 MB limit")
+                }
+                val backup = File(destination.parentFile, destination.name + ".backup")
+                if (backup.exists()) backup.delete()
+                if (destination.exists() && !destination.renameTo(backup)) {
+                    throw IllegalStateException("Could not replace old cover")
+                }
+                if (!temp.renameTo(destination)) {
+                    if (backup.exists()) backup.renameTo(destination)
+                    throw IllegalStateException("Could not save new cover")
+                }
+                backup.delete()
+            } finally {
+                temp.delete()
+            }
+        } finally {
+            if (output !== selected && !output.isRecycled) output.recycle()
+            if (selected !== bitmap && !selected.isRecycled) selected.recycle()
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+    }
+
+    private fun pickCover(index: Int) {
+        val path = currentGames.getOrNull(index)?.path ?: return
+        pendingCoverPath = path
+        coverPicker.launch("image/*")
+    }
+
+    private fun resetCover(index: Int) {
+        val path = currentGames.getOrNull(index)?.path ?: return
+        io.execute {
+            try {
+                if (coverFile(path).exists() && !coverFile(path).delete()) {
+                    notifyUi("onAction", "Could not remove this cover.")
+                } else {
+                    notifyUi("onAction", "Game cover reset.")
+                    refreshGames()
+                }
+            } catch (_: Exception) {
+                notifyUi("onAction", "Could not reset cover.")
+            }
+        }
+    }
 
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
     private val gameFolderPicker =
@@ -214,6 +443,13 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         super.onResume()
         handler.postDelayed({ refreshGames() }, 400)
         handler.postDelayed({ refreshStatus() }, 500)
+        handler.removeCallbacks(deviceTicker)
+        handler.post(deviceTicker)
+    }
+
+    override fun onPause() {
+        handler.removeCallbacks(deviceTicker)
+        super.onPause()
     }
 
     private fun notifyUi(method: String, payload: String) {
@@ -238,18 +474,27 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 currentGames = found
                 val favorites = getSharedPreferences("bluswitch_home", MODE_PRIVATE)
                     .getStringSet("favorites", emptySet()) ?: emptySet()
+                val recentPrefs = PreferenceManager.getDefaultSharedPreferences(this)
                 val results = JSONArray()
                 found.forEachIndexed { position, game ->
                     val item = JSONObject()
                     item.put("index", position)
                     item.put("title", game.title)
                     item.put("favorite", favorites.contains(game.path))
+                    item.put("lastPlayed", recentPrefs.getLong(game.keyLastPlayedTime, 0L))
                     if (position < 32) {
                         try {
-                            val icon = GameMetadata.getIcon(game.path)
-                            if (icon.isNotEmpty() && icon.size < 350000) {
-                                item.put("art", "data:image/png;base64," +
-                                    Base64.encodeToString(icon, Base64.NO_WRAP))
+                            val custom = coverFile(game.path)
+                            if (custom.isFile && custom.length() in 1..1_000_000) {
+                                item.put("art", "data:image/jpeg;base64," +
+                                    Base64.encodeToString(custom.readBytes(), Base64.NO_WRAP))
+                                item.put("customCover", true)
+                            } else {
+                                val icon = GameMetadata.getIcon(game.path)
+                                if (icon.isNotEmpty() && icon.size < 350000) {
+                                    item.put("art", "data:image/png;base64," +
+                                        Base64.encodeToString(icon, Base64.NO_WRAP))
+                                }
                             }
                         } catch (_: Exception) { }
                     }
@@ -310,9 +555,15 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
+        @JavascriptInterface fun pickCover(index: Int) { handler.post { this@BluSwitchHomeActivity.pickCover(index) } }
+        @JavascriptInterface fun resetCover(index: Int) { handler.post { this@BluSwitchHomeActivity.resetCover(index) } }
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
+        @JavascriptInterface fun requestDeviceStatus() { handler.post { publishDeviceStatus() } }
+        @JavascriptInterface fun setControllerTestActive(active: Boolean) {
+            handler.post { controllerTestActive = active }
+        }
         @JavascriptInterface fun requestStorageAccess() {
             handler.post {
                 if (android.os.Build.VERSION.SDK_INT >= 30 &&
@@ -346,6 +597,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         closing = true
+        handler.removeCallbacks(deviceTicker)
         io.shutdownNow()
         browser.removeJavascriptInterface("BluNative")
         browser.destroy()

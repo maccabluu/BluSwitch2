@@ -4,10 +4,12 @@ on:
     branches:
       - main
       - bluswitch2-original-ui
+      - bluswitch2-quality-tools
     paths:
       - 'bluswitch-ui/**'
       - 'scripts/apply-ui.py'
       - 'scripts/verify-navigation.cjs'
+      - 'scripts/verify-quality-tools.cjs'
       - '.github/workflows/bluswitch2-native-android.yml'
   workflow_dispatch:
 
@@ -26,6 +28,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify BluSwitch navigation never opens Eden
         run: node scripts/verify-navigation.cjs
+      - name: Verify game library, covers, device telemetry and controller tester
+        run: node scripts/verify-quality-tools.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
