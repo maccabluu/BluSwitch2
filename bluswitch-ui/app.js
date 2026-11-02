@@ -71,6 +71,7 @@ function library(showFavorites) {
 }
 var status = {keys:false, firmware:false, folders:[], files:[], ready:false};
 var notice = '';
+var userFiles = {path:'',entries:[],error:'',preview:null,loading:false};
 function actionButton(title,command,secondary) {
  return '<button class="'+(secondary?'secondary-btn':'primary-btn')+'" onclick="BluSwitch.openAction(\''+command+'\')">'+safe(title)+'</button>';
 }
@@ -100,6 +101,35 @@ function renderFiles() {
   (!status.allFiles?actionButton('Enable ExeFS access','enableStorage',true):'')+
   '</div><p class="notice">'+safe(storage)+'</p></section>';
 }
+
+function renderUserFiles() {
+ var html='<section class="screen-panel blu-user-files"><h1>My BluSwitch 2 Folder</h1>'+
+ '<p class="notice">Browse your emulator data inside BluSwitch 2. Your files are not moved or deleted.</p>';
+ if(userFiles.preview) {
+  html+='<button class="secondary-btn" onclick="BluSwitch.closeUserPreview()">Back to folder</button>'+
+   '<h2>'+safe(userFiles.preview.name||'Text file')+'</h2>'+
+   (userFiles.preview.loading?'<p class="notice">Opening file...</p>':
+   userFiles.preview.error?'<p class="notice">'+safe(userFiles.preview.error)+'</p>':
+   '<pre class="blu-user-preview">'+safe(userFiles.preview.content||'')+'</pre>');
+  return html+'</section>';
+ }
+ html+='<div class="action-row"><button class="secondary-btn" onclick="BluSwitch.userFolderBack()">'+
+ (userFiles.path?'Up one folder':'Back to Settings')+'</button>'+
+ '<button class="secondary-btn" onclick="BluSwitch.browseUserFiles(userFiles.path)">Refresh folder</button></div>'+
+ '<p class="notice">BluSwitch 2 / '+safe(userFiles.path||'Home')+'</p>';
+ if(userFiles.loading)return html+'<p class="notice">Loading your folder...</p></section>';
+ if(userFiles.error)return html+'<p class="notice">'+safe(userFiles.error)+'</p></section>';
+ var entries=userFiles.entries||[];
+ if(!entries.length)return html+'<p class="notice">This folder is empty.</p></section>';
+ html+='<div class="blu-user-file-list">';
+ entries.forEach(function(item,i){
+  html+='<button class="blu-user-file-row" onclick="BluSwitch.openUserEntry('+i+')">'+
+   '<span aria-hidden="true">'+(item.folder?'📁':'📄')+'</span>'+
+   '<span><strong>'+safe(item.name)+'</strong><small>'+(item.folder?'Folder':safe(item.size)+' bytes · Tap to preview')+'</small></span>'+
+   '<span aria-hidden="true">›</span></button>';
+ });
+ return html+'</div></section>';
+}
 function renderSettings() {
  return window.BluSettings ? window.BluSettings.render(status) : '<p>Settings are loading...</p>';
 }
@@ -124,6 +154,7 @@ function render() {
  if(current==='home')view.innerHTML=library(false);
  else if(current==='collections')view.innerHTML=library(true);
  else if(current==='files')view.innerHTML=renderFiles();
+ else if(current==='user-files')view.innerHTML=renderUserFiles();
  else if(current==='settings')view.innerHTML=renderSettings();
  else if(current==='store')view.innerHTML=window.BluStore ? window.BluStore.render() : section('Homebrew Store','Homebrew catalogue unavailable.','');
  else if(current==='media')view.innerHTML=section('Media','Media capture management is not available yet. This screen is part of BluSwitch 2 and will not open another emulator.',actionButton('Back to library','home'));
@@ -133,6 +164,37 @@ function render() {
  else view.innerHTML=library(false);
 }
 window.BluSwitch = {
+
+ setUserFiles:function(json){
+  try{
+   var result=JSON.parse(json);
+   userFiles.loading=false;
+   userFiles.error=result.error||'';
+   userFiles.path=String(result.path||'');
+   userFiles.entries=Array.isArray(result.entries)?result.entries:[];
+   render();
+  }catch(e){userFiles.loading=false;userFiles.error='Could not read BluSwitch folder.';render();}
+ },
+ setUserPreview:function(json){
+  try {userFiles.preview=JSON.parse(json);}catch(e){userFiles.preview={error:'Could not open this file.'};}
+  render();
+ },
+ browseUserFiles:function(path){
+  userFiles.loading=true;userFiles.error='';userFiles.preview=null;render();
+  nativeCall('browseUserFiles',path||'');
+ },
+ userFolderBack:function(){
+  if(userFiles.preview){userFiles.preview=null;render();return;}
+  if(!userFiles.path){this.open('settings');return;}
+  var parts=userFiles.path.split('/');parts.pop();this.browseUserFiles(parts.join('/'));
+ },
+ openUserEntry:function(index){
+  var entry=userFiles.entries[index];if(!entry)return;
+  if(entry.folder){this.browseUserFiles(entry.path);return;}
+  userFiles.preview={name:entry.name,loading:true};render();
+  nativeCall('previewUserFile',entry.path);
+ },
+ closeUserPreview:function(){userFiles.preview=null;render();},
  isStoreOpen:function(){return current==='store';},
  setStoreCatalog:function(json){if(window.BluStore)window.BluStore.receive(json);},
  setGames:function(json) {
@@ -161,6 +223,7 @@ window.BluSwitch = {
  setStatus:function(json){try{status=JSON.parse(json);render();}catch(e){}},
  onAction:function(message){notice=message;alert(message);nativeCall('requestStatus');nativeCall('requestGames');},
  back:function(){
+  if(current === 'user-files'){this.userFolderBack();return;}
   if(current !== 'home') {current='home';render();}
   else nativeCall('exit');
  },
