@@ -11,6 +11,7 @@ on:
       - 'scripts/verify-navigation.cjs'
       - 'scripts/verify-emulation-library.cjs'
       - 'scripts/brand-ingame.py'
+      - 'scripts/fix-gamehelper.py'
       - '.github/workflows/bluswitch2-native-android.yml'
   workflow_dispatch:
 
@@ -106,6 +107,7 @@ jobs:
         run: |
           python3 scripts/apply-ui.py nx2-source
           python3 scripts/brand-ingame.py nx2-source
+          python3 scripts/fix-gamehelper.py nx2-source
           test -f nx2-source/src/android/app/src/main/res/values/bluswitch_ingame_colors.xml
           test -f nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/ui/main/BluSwitchHomeActivity.kt
           test -f nx2-source/src/android/app/src/main/assets/bluswitch/index.html
