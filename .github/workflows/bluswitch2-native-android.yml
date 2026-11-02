@@ -5,6 +5,7 @@ on:
       - main
       - bluswitch2-original-ui
       - bluswitch2-ingame-library-persistence
+      - bluswitch2-core-repair-isolated
     paths:
       - 'bluswitch-ui/**'
       - 'scripts/apply-ui.py'
