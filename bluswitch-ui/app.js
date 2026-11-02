@@ -60,29 +60,52 @@ function library(showFavorites) {
     'Choose the star on a game cover to add it to Favourites.' :
     'No games found yet. Add your own game folder to start.';
   return '<div class="empty-home"><h2>'+(showFavorites?'Your favourites':'Your game library')+'</h2><p>'+msg+'</p><div class="action-row" style="justify-content:center">'+
-   '<button class="primary-btn" onclick="BluSwitch.advanced()">Add game folder</button>'+
+   '<button class="primary-btn" onclick="BluSwitch.addFolder()">Add game folder</button>'+
    '<button class="secondary-btn" onclick="BluSwitch.refresh()">Refresh library</button></div></div>';
  }
  return '<section class="carousel-panel"><div class="carousel-meta"><span>'+
  (showFavorites?'Your favourites':'Your game library')+' · '+items.length+' '+(items.length===1?'game':'games')+
- '</span><div><button onclick="BluSwitch.refresh()">Refresh</button><button onclick="BluSwitch.advanced()">+ Add game folder</button></div></div>'+
+ '</span><div><button onclick="BluSwitch.refresh()">Refresh</button><button onclick="BluSwitch.addFolder()">+ Add game folder</button></div></div>'+
  '<div class="game-strip" aria-label="Your games">'+items.map(card).join('')+'</div></section>';
 }
-function panel(title,text,button) {
- return '<section class="screen-panel"><h1>'+safe(title)+'</h1><p class="notice">'+safe(text)+'</p>'+
- '<div class="action-row"><button class="primary-btn" onclick="BluSwitch.advanced()">'+safe(button||'Open advanced options')+'</button>'+
- '<button class="secondary-btn" onclick="BluSwitch.open(\'home\')">Back to library</button></div></section>';
+var status = {keys:false, firmware:false, folders:[], ready:false};
+var notice = '';
+function actionButton(title,command,secondary) {
+ return '<button class="'+(secondary?'secondary-btn':'primary-btn')+'" onclick="BluSwitch.openAction(\''+command+'\')">'+safe(title)+'</button>';
+}
+function section(title,description,actions) {
+ return '<section class="screen-panel"><h1>'+safe(title)+'</h1><p class="notice">'+safe(description)+'</p><div class="action-row">'+(actions||'')+'</div></section>';
+}
+function renderFiles() {
+ var folders = (status.folders||[]);
+ var list = folders.length ? '<div class="folder-list">'+folders.map(function(folder,i){
+   return '<div class="folder-row"><span>'+safe(folder)+'</span><button class="secondary-btn" onclick="BluSwitch.removeFolder('+i+')">Remove</button></div>';
+ }).join('')+'</div>' : '<p class="notice">No game folders added yet.</p>';
+ return '<section class="screen-panel"><h1>Game files</h1><p class="notice">Add a folder containing your own game dumps. BluSwitch 2 will scan for supported files.</p>'+list+
+ '<div class="action-row">'+actionButton('Add game folder','addFolder')+actionButton('Refresh library','refresh',true)+'</div></section>';
+}
+function renderSettings() {
+ var keyText = status.ready ? (status.keys ? 'Installed' : 'Not installed') : 'Checking';
+ var firmText = status.ready ? (status.firmware ? 'Installed' : 'Not installed') : 'Checking';
+ return '<section class="screen-panel"><h1>BluSwitch 2 settings</h1>'+
+ '<div class="settings-grid"><div class="setting-card"><strong>Decryption keys</strong><span>'+keyText+'</span><small>Loose Switch 2 ExeFS games do not require keys. Some encrypted game formats do.</small></div>'+
+ '<div class="setting-card"><strong>Firmware</strong><span>'+firmText+'</span><small>Some titles need firmware. BluSwitch 2 does not include system files.</small></div>'+
+ '<div class="setting-card"><strong>Game folders</strong><span>'+(status.folders||[]).length+'</span><small>Folders added to your game library.</small></div></div>'+
+ '<div class="action-row">'+actionButton('Import my prod.keys','importKeys')+actionButton('Add game folder','addFolder',true)+actionButton('Check again','checkStatus',true)+'</div>'+
+ '<p class="notice">Use files dumped from hardware you own. Your keys stay on your device and are never uploaded.</p></section>';
 }
 function render() {
  renderDock();
  var view=document.getElementById('main-view');
  if(current==='home')view.innerHTML=library(false);
  else if(current==='collections')view.innerHTML=library(true);
- else if(current==='store')view.innerHTML=panel('Store','There is no built-in game store or download service. BluSwitch 2 uses game files you add yourself.','Manage game folders');
- else if(current==='media')view.innerHTML=panel('Media','Media capture management is not yet available on this home screen. Native emulator functions are still included.','Open native options');
- else if(current==='saves')view.innerHTML=panel('Saves','Game saves are handled by the emulator core. Open the native library to manage game-specific saves.','Open native library');
- else if(current==='controller')view.innerHTML=panel('Controller','Set up your AYN Thor controller using the emulator input settings.','Open controller settings');
- else if(current==='handheld')view.innerHTML=panel('Handheld Mode','BluSwitch 2 is using a landscape layout for your Android handheld. Emulator graphics and handheld settings remain in advanced options.','Open handheld settings');
+ else if(current==='files')view.innerHTML=renderFiles();
+ else if(current==='settings')view.innerHTML=renderSettings();
+ else if(current==='store')view.innerHTML=section('Store','BluSwitch 2 does not have a game store. Add your own legally obtained game files using Files.',actionButton('Open Files','files'));
+ else if(current==='media')view.innerHTML=section('Media','Media capture management is not available yet. This screen is part of BluSwitch 2 and will not open another emulator.',actionButton('Back to library','home'));
+ else if(current==='saves')view.innerHTML=section('Saves','The emulator stores game saves in its app data. Save browsing and backup controls are not available in this version.',actionButton('Back to library','home'));
+ else if(current==='controller')view.innerHTML=section('Controller','BluSwitch 2 uses the emulator core for controls. Dedicated AYN Thor controller mapping from this screen is still being developed.',actionButton('Back to library','home'));
+ else if(current==='handheld')view.innerHTML=section('Handheld Mode','BluSwitch 2 is running in landscape handheld mode. Native gameplay graphics and input settings are controlled by the emulator engine.',actionButton('Back to library','home'));
  else view.innerHTML=library(false);
 }
 window.BluSwitch = {
@@ -94,9 +117,16 @@ window.BluSwitch = {
  refresh:function(){ busy=true;render();nativeCall('requestGames'); },
  play:function(index){nativeCall('launchGame',index);},
  favorite:function(index){nativeCall('favorite',index);},
- advanced:function(){nativeCall('openAdvanced');},
+ addFolder:function(){nativeCall('pickGameFolder');},
+ importKeys:function(){nativeCall('pickProdKeys');},
+ checkStatus:function(){nativeCall('requestStatus');},
+ removeFolder:function(index){
+   if(confirm('Remove this game folder from BluSwitch 2? Your actual game files will not be deleted.')) nativeCall('removeGameFolder',index);
+ },
+ openAction:function(command){if(typeof this[command]==='function')this[command]();else this.open(command);},
+ setStatus:function(json){try{status=JSON.parse(json);render();}catch(e){}},
+ onAction:function(message){notice=message;alert(message);nativeCall('requestStatus');nativeCall('requestGames');},
  open:function(id){
-  if(id==='files'||id==='settings'){nativeCall('openAdvanced');return;}
   if(id==='power'){
    if(confirm('Exit BluSwitch 2?'))nativeCall('exit');return;
   }
@@ -106,5 +136,6 @@ window.BluSwitch = {
 document.addEventListener('DOMContentLoaded',function(){
  updateClock();setInterval(updateClock,30000);render();
  nativeCall('requestGames');
+ nativeCall('requestStatus');
 });
 })();
