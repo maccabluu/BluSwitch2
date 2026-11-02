@@ -86,6 +86,7 @@ function row(o){
   (o.desc?'<small>'+safe(o.desc)+'</small>':'')+'</span><span class="advanced-setting-control">'+control+'</span></label>';
 }
 window.BluAdvanced={
+ isDetail:function(){return !!active;},
  render:function(){
   if(!active)return '<section class="advanced-shell"><div class="advanced-heading"><h1>BluSwitch 2 settings</h1>'+
    '<p>Configure the native emulator inside BluSwitch 2. Options take effect in games supported by the core.</p></div>'+
