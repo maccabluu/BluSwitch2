@@ -22,7 +22,7 @@ function draw(){
  else if(loading)html+='<p class="notice">Loading the live homebrew catalogue...</p>';
  else if(!loaded)html+='<p class="notice">Connect to the internet to browse homebrew.</p>';
  else {var list=filtered();html+='<p class="notice">'+list.length+' homebrew apps</p><div class="blu-store-grid">';
- list.slice(0,120).forEach(function(p){html+='<button class="blu-store-tile" onclick="BluStore.details('+JSON.stringify(p.name).replace(/"/g,'&quot;')+')"><strong>'+esc(p.title||p.name)+'</strong><small>'+esc(p.author||'Community developer')+'</small><span>'+esc(p.description||'View details')+'</span></button>';});
+ list.slice(0,120).forEach(function(p){html+='<button class="blu-store-tile" onclick="BluStore.details(\''+esc(p.name)+'\')"><strong>'+esc(p.title||p.name)+'</strong><small>'+esc(p.author||'Community developer')+'</small><span>'+esc(p.description||'View details')+'</span></button>';});
  html+='</div>';if(list.length>120)html+='<p class="notice">Showing first 120 matches. Search to narrow results.</p>'; }
  html+='</section>';
  }
