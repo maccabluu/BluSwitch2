@@ -176,6 +176,134 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
     }
 
+
+    // Only whitelisted options from the native NX2 configuration are exposed to the UI.
+    private val advancedBooleans = setOf(
+        "use_docked_mode", "use_custom_cpu_ticks",
+        "sync_memory_operations", "use_disk_shader_cache", "force_max_clock",
+        "use_reactive_flushing", "enable_buffer_history", "use_optimized_vertex_buffers",
+        "show_performance_overlay", "perf_overlay_background", "show_fps",
+        "show_frame_time", "show_app_ram_usage", "show_system_ram_usage",
+        "show_bat_temperature", "show_power_info", "show_shaders_building",
+        "show_soc_overlay", "soc_overlay_background", "show_build_id",
+        "show_driver_version", "show_device_model", "show_gpu_model",
+        "show_soc_model", "show_firmware_version", "show_input_overlay",
+        "overlay_snap_to_grid", "enable_input_overlay_auto_hide",
+        "hide_overlay_on_controller_input", "haptic_feedback"
+    )
+
+    // Values originate from the upstream NX2 Android arrays.xml and SettingsItem lists.
+    private val advancedChoices: Map<String, Set<Int>> = mapOf(
+        "memory_layout_mode" to (0..4).toSet(),
+        "region_index" to (0..6).toSet(),
+        "language_index" to setOf(0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12),
+        "resolution_setup" to (0..8).toSet(),
+        "use_vsync" to (0..3).toSet(),
+        "scaling_filter" to (0..15).toSet(),
+        "anti_aliasing" to (0..2).toSet(),
+        "gpu_accuracy" to (0..1).toSet(),
+        "dma_accuracy" to (0..2).toSet(),
+        "max_anisotropy" to (0..5).toSet(),
+        "vram_usage_mode" to (0..1).toSet(),
+        "accelerate_astc" to (0..2).toSet(),
+        "perf_overlay_position" to (0..5).toSet(),
+        "soc_overlay_position" to (0..5).toSet(),
+        "bat_temperature_unit" to (0..1).toSet()
+    )
+
+    private val advancedNumbers = mapOf(
+        "cpu_ticks" to (77..65535),
+        "overlay_grid_size" to (16..128),
+        "input_overlay_auto_hide" to (1..999)
+    )
+
+    private fun requestAdvancedSettings() {
+        if (closing) return
+        if (!DirectoryInitialization.areDirectoriesReady) {
+            handler.postDelayed({ requestAdvancedSettings() }, 400)
+            return
+        }
+        io.execute {
+            try {
+                val json = JSONObject()
+                advancedBooleans.forEach { key ->
+                    json.put(key, NativeConfig.getBoolean(key, true))
+                }
+                (advancedChoices.keys + advancedNumbers.keys).forEach { key ->
+                    json.put(key, NativeConfig.getInt(key, true))
+                }
+                json.put("eden_username", NativeConfig.getString("eden_username", true))
+                // Never transfer the existing web token into JavaScript or screenshots.
+                json.put("tokenPresent", NativeConfig.getString("eden_token", true).isNotEmpty())
+                notifyUi("setAdvancedSettings", json.toString())
+            } catch (ex: Exception) {
+                notifyUi("advancedSettingsError", "Unable to read emulator settings.")
+            }
+        }
+    }
+
+    private fun changeAdvancedSetting(key: String, input: String) {
+        if (closing) return
+        io.execute {
+            var error: String? = null
+            var resultValue: Any = input
+            try {
+                require(DirectoryInitialization.areDirectoriesReady) { "App storage is not ready." }
+                require(!NativeConfig.isPerGameConfigLoaded()) {
+                    "Close the active game's configuration before editing global settings."
+                }
+                when {
+                    advancedBooleans.contains(key) -> {
+                        require(input == "true" || input == "false") { "Invalid toggle value" }
+                        val value = input == "true"
+                        NativeConfig.setBoolean(key, value)
+                        resultValue = value
+                    }
+                    advancedChoices.containsKey(key) -> {
+                        val value = input.toInt()
+                        require(advancedChoices.getValue(key).contains(value)) {
+                            "This option is not supported"
+                        }
+                        NativeConfig.setInt(key, value)
+                        resultValue = value
+                    }
+                    advancedNumbers.containsKey(key) -> {
+                        val value = input.toInt()
+                        require(value in advancedNumbers.getValue(key)) {
+                            "Value outside the allowed range"
+                        }
+                        NativeConfig.setInt(key, value)
+                        resultValue = value
+                    }
+                    key == "eden_username" -> {
+                        require(input.matches(Regex("[a-zA-Z0-9_. -]{4,20}"))) {
+                            "Username must be 4 to 20 letters, numbers or allowed symbols"
+                        }
+                        NativeConfig.setString(key, input)
+                    }
+                    key == "eden_token" -> {
+                        require(input.matches(Regex("[a-z]{48}"))) {
+                            "A web token must contain 48 lowercase letters"
+                        }
+                        NativeConfig.setString(key, input)
+                        resultValue = ""
+                    }
+                    else -> throw IllegalArgumentException("Unknown emulator setting")
+                }
+                NativeConfig.saveGlobalConfig()
+                NativeLibrary.applySettings()
+            } catch (ex: Exception) {
+                error = ex.message ?: "Unable to save option"
+            }
+            val feedback = JSONObject()
+            feedback.put("key", key)
+            feedback.put("ok", error == null)
+            feedback.put("message", error ?: "Setting saved")
+            if (error == null) feedback.put("value", resultValue)
+            notifyUi("advancedSettingSaved", feedback.toString())
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         ThemeHelper.setTheme(this)
         super.onCreate(savedInstanceState)
@@ -313,6 +441,12 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
+        @JavascriptInterface fun requestAdvancedSettings() {
+            handler.post { this@BluSwitchHomeActivity.requestAdvancedSettings() }
+        }
+        @JavascriptInterface fun writeAdvancedSetting(key: String, value: String) {
+            handler.post { changeAdvancedSetting(key, value) }
+        }
         @JavascriptInterface fun requestStorageAccess() {
             handler.post {
                 if (android.os.Build.VERSION.SDK_INT >= 30 &&
