@@ -60,7 +60,7 @@ function library(showFavorites) {
     'Choose the star on a game cover to add it to Favourites.' :
     'No games found yet. Add your own game folder to start.';
   return '<div class="empty-home"><h2>'+(showFavorites?'Your favourites':'Your game library')+'</h2><p>'+msg+'</p><div class="action-row" style="justify-content:center">'+
-   '<button class="primary-btn" onclick="BluSwitch.addFolder()">Add game folder</button>'+
+   '<button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Launch extracted Switch 2 game</button>'+'<button class="primary-btn" onclick="BluSwitch.addFolder()">Add game folder</button>'+
    '<button class="secondary-btn" onclick="BluSwitch.addGameFile()">Add game file</button>'+
    '<button class="secondary-btn" onclick="BluSwitch.refresh()">Refresh library</button></div></div>';
  }
@@ -95,7 +95,7 @@ function renderFiles() {
   '<p class="notice">Your selected folders and game files are kept when you close a game. Only files recognised by the emulator appear in Library.</p>'+
   '<h2>Game folders</h2>'+folderList+
   '<h2>Individual game files</h2>'+fileList+
-  '<div class="action-row">'+actionButton('Add game folder','addFolder')+
+  '<div class="action-row">'+actionButton('Launch extracted Switch 2 game','launchExeFSFolder')+actionButton('Add game folder','addFolder')+
   actionButton('Add game file','addGameFile')+actionButton('Refresh library','refresh',true)+
   (!status.allFiles?actionButton('Enable ExeFS access','enableStorage',true):'')+
   '</div><p class="notice">'+safe(storage)+'</p></section>';
@@ -128,6 +128,7 @@ window.BluSwitch = {
  play:function(index){nativeCall('launchGame',index);},
  favorite:function(index){nativeCall('favorite',index);},
  addFolder:function(){nativeCall('pickGameFolder');},
+ launchExeFSFolder:function(){nativeCall('launchExeFSFolder');},
  addGameFile:function(){nativeCall('pickGameFile');},
  removeGameFile:function(index){
   if(confirm('Remove this file from the BluSwitch 2 library? The game file stays on your device.'))
