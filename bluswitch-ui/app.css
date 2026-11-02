@@ -121,3 +121,7 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .blu-user-file-row small { opacity:.7; font-size:12px; }
 .blu-user-file-row:focus-visible { outline:3px solid #46baff; outline-offset:2px; }
 .blu-user-preview { overflow:auto; max-height:55vh; white-space:pre-wrap; overflow-wrap:anywhere; padding:15px; border-radius:14px; background:rgba(28,68,148,.1); }
+
+/* Game boot check stays above the transparent Play overlay. */
+.game-check{position:absolute;left:8px;bottom:33px;z-index:3;padding:6px 11px;border:1px solid #a7ddff;border-radius:9px;background:#0b2b66eb;color:white;font-size:11px;font-weight:800;cursor:pointer}
+.game-check:focus-visible{outline:3px solid #3ce0ff;outline-offset:1px}
