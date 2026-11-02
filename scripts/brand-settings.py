@@ -29,6 +29,22 @@ for path in activities:
     )
     path.write_text(text)
 
+# File pickers use the DocumentsProvider root title, not the settings button text.
+# Force the user-visible root name and icon to BluSwitch 2 without altering
+# the provider authority, document IDs or existing files.
+provider = app / "java/org/yuzu/yuzu_emu/features/DocumentProvider.kt"
+source = provider.read_text()
+import re
+title_pattern = r'(add\(DocumentsContract\.Root\.COLUMN_TITLE,\s*)context!!\.getString\(R\.string\.app_name\)(\))'
+source, title_count = re.subn(title_pattern, r'\1"BluSwitch 2"\2', source)
+if title_count != 1:
+    raise SystemExit("DocumentProvider root title changed upstream; BluSwitch branding needs review")
+source = source.replace(
+    "add(DocumentsContract.Root.COLUMN_ICON, R.drawable.ic_yuzu)",
+    "add(DocumentsContract.Root.COLUMN_ICON, R.drawable.bluswitch_icon)"
+)
+provider.write_text(source)
+
 strings = app / "res/values/strings.xml"
 text = strings.read_text()
 names = {
