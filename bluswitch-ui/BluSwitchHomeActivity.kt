@@ -43,7 +43,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private val io = Executors.newSingleThreadExecutor()
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
-    private val settingsActions = BluSettingsActions(this)
+    private val settingsActions = BluSettingsActions(this) { showUserFolder() }
 
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
     private val gameFolderPicker =
@@ -234,6 +234,89 @@ class BluSwitchHomeActivity : AppCompatActivity() {
             pending?.delete()
             refreshStatus()
             refreshGames()
+        }
+    }
+
+
+    // Browse private emulator data inside BluSwitch. Never launch the upstream
+    // Android DocumentsUI root, which is still labelled Eden on some builds.
+    private fun showUserFolder() {
+        if (closing) return
+        browser.evaluateJavascript("window.BluSwitch && window.BluSwitch.open('user-files');", null)
+        browseUserFolder("")
+    }
+
+    private fun resolveUserFile(relative: String): Pair<File, File> {
+        val root = File(DirectoryInitialization.userDirectory, ".").canonicalFile
+        val target = File(root, relative).canonicalFile
+        require(target == root || target.path.startsWith(root.path + File.separator)) {
+            "File is outside BluSwitch data"
+        }
+        return root to target
+    }
+
+    private fun browseUserFolder(relative: String) {
+        if (!DirectoryInitialization.areDirectoriesReady) {
+            notifyUi("setUserFiles", JSONObject().put("error", "Emulator storage is still starting.").toString())
+            return
+        }
+        io.execute {
+            val result = JSONObject()
+            try {
+                val (root, directory) = resolveUserFile(relative)
+                require(directory.isDirectory) { "This folder is unavailable" }
+                val relativePath = directory.path.removePrefix(root.path)
+                    .trimStart(File.separatorChar).replace(File.separatorChar, '/')
+                result.put("path", relativePath)
+                val entries = JSONArray()
+                directory.listFiles()
+                    ?.sortedWith(compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase() })
+                    ?.take(400)
+                    ?.forEach { child ->
+                        try {
+                            val (_, safeChild) = resolveUserFile(
+                                child.canonicalPath.removePrefix(root.path)
+                                    .trimStart(File.separatorChar)
+                            )
+                            if (safeChild.isFile || safeChild.isDirectory) {
+                                val item = JSONObject()
+                                item.put("name", child.name)
+                                item.put("path", safeChild.path.removePrefix(root.path)
+                                    .trimStart(File.separatorChar).replace(File.separatorChar, '/'))
+                                item.put("folder", safeChild.isDirectory)
+                                item.put("size", if (safeChild.isFile) safeChild.length() else 0)
+                                entries.put(item)
+                            }
+                        } catch (_: Exception) { /* Skip inaccessible entries */ }
+                    }
+                result.put("entries", entries)
+            } catch (ex: Exception) {
+                result.put("error", ex.message ?: "Unable to read BluSwitch data")
+            }
+            notifyUi("setUserFiles", result.toString())
+        }
+    }
+
+    private fun previewUserFile(relative: String) {
+        if (!DirectoryInitialization.areDirectoriesReady) return
+        io.execute {
+            val result = JSONObject()
+            try {
+                val (_, file) = resolveUserFile(relative)
+                require(file.isFile) { "This file is unavailable" }
+                val safeExtensions = setOf("txt", "log", "ini", "json", "xml", "cfg", "md")
+                require(file.extension.lowercase() in safeExtensions) {
+                    "Preview is available for text files only"
+                }
+                require(file.length() <= 131072L) { "File is too large to preview" }
+                val content = file.readText(Charsets.UTF_8)
+                require(!content.contains('\\u0000')) { "Binary files cannot be previewed" }
+                result.put("name", file.name)
+                result.put("content", content)
+            } catch (ex: Exception) {
+                result.put("error", ex.message ?: "Unable to preview this file")
+            }
+            notifyUi("setUserPreview", result.toString())
         }
     }
 
@@ -503,6 +586,12 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     inner class Bridge {
         @JavascriptInterface fun requestStoreCatalog() { handler.post { fetchHomebrewCatalogue() } }
         @JavascriptInterface fun downloadHomebrew(name: String) { handler.post { downloadHomebrew(name) } }
+        @JavascriptInterface fun browseUserFiles(path: String) {
+            handler.post { browseUserFolder(path) }
+        }
+        @JavascriptInterface fun previewUserFile(path: String) {
+            handler.post { previewUserFile(path) }
+        }
         @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
