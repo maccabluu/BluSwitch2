@@ -101,15 +101,9 @@ function renderFiles() {
   '</div><p class="notice">'+safe(storage)+'</p></section>';
 }
 function renderSettings() {
- var keyText = status.ready ? (status.keys ? 'Installed' : 'Not installed') : 'Checking';
- var firmText = status.ready ? (status.firmware ? 'Installed' : 'Not installed') : 'Checking';
- return '<section class="screen-panel"><h1>BluSwitch 2 settings</h1>'+
- '<div class="settings-grid"><div class="setting-card"><strong>Decryption keys</strong><span>'+keyText+'</span><small>Loose Switch 2 ExeFS games do not require keys. Some encrypted game formats do.</small></div>'+
- '<div class="setting-card"><strong>Firmware</strong><span>'+firmText+'</span><small>Some titles need firmware. BluSwitch 2 does not include system files.</small></div>'+
- '<div class="setting-card"><strong>Game folders</strong><span>'+(status.folders||[]).length+'</span><small>Folders added to your game library.</small></div></div>'+
- '<div class="action-row">'+actionButton('Import my prod.keys','importKeys')+actionButton('Add game folder','addFolder',true)+actionButton('Check again','checkStatus',true)+'</div>'+
- '<p class="notice">Use files dumped from hardware you own. Your keys stay on your device and are never uploaded.</p></section>';
+ return window.BluSettings ? window.BluSettings.render(status) : '<p>Settings are loading...</p>';
 }
+
 function render() {
  renderDock();
  var view=document.getElementById('main-view');
