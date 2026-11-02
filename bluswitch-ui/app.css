@@ -49,3 +49,16 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .notice{background:#ffffffb5;padding:14px 16px;border:1px solid #b9dcff;border-radius:15px}
 .action-row{display:flex;gap:9px;flex-wrap:wrap}
 @media(max-height:470px){.app-shell{padding-top:7px}.topbar{height:40px;min-height:40px}.brand-bubble{height:37px;width:37px}.game-card{height:29vh;width:18vw}.lower-bar{height:37px}.dock-item{min-height:40px}}
+
+
+/* BluSwitch settings and game-folders screens */
+.settings-grid{display:flex;gap:12px;flex-wrap:wrap;width:100%;max-width:1000px}
+.setting-card{flex:1 1 185px;min-width:165px;background:#ffffffc9;border:1px solid #b5dfff;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:5px}
+.setting-card strong{font-size:clamp(12px,2vh,15px)}
+.setting-card span{font-weight:800;color:#0767bc;font-size:clamp(13px,2.4vh,17px)}
+.setting-card small{font-size:clamp(10px,1.7vh,12px);color:#526883;line-height:1.35}
+.folder-list{display:flex;flex-direction:column;gap:8px;width:100%;max-width:880px;overflow-y:auto;max-height:38vh}
+.folder-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;background:#ffffffcc;border:1px solid #badbfb;border-radius:13px}
+.folder-row span{font-size:12px;overflow-wrap:anywhere;min-width:0}
+.screen-panel{width:100%;max-width:1000px;margin:0 auto;padding:10px 2px}
+@media(max-height:500px){.settings-grid{gap:7px}.setting-card{padding:7px}.screen-panel{gap:7px}.screen-panel .notice{padding:7px 10px;margin:0}}
