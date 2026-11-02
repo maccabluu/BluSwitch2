@@ -8,6 +8,7 @@ on:
       - bluswitch2-core-repair-isolated
       - bluswitch2-container-loader-research
       - bluswitch2-settings-hub
+      - bluswitch2-gametdb-covers
     paths:
       - 'bluswitch-ui/**'
       - 'scripts/apply-ui.py'
@@ -18,6 +19,7 @@ on:
       - 'scripts/fix-gamehelper.py'
       - 'scripts/brand-settings.py'
       - 'scripts/verify-settings-gameplay.cjs'
+      - 'scripts/verify-gametdb-cover.cjs'
       - '.github/workflows/bluswitch2-native-android.yml'
   workflow_dispatch:
 
@@ -42,6 +44,8 @@ jobs:
         run: node scripts/verify-container-inspector.cjs
       - name: Verify real settings handlers and extracted game launch
         run: node scripts/verify-settings-gameplay.cjs
+      - name: Verify GameTDB cover lookup, cache and native bridge
+        run: node scripts/verify-gametdb-cover.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

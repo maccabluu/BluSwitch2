@@ -43,6 +43,83 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private val io = Executors.newSingleThreadExecutor()
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
+    private val gameTdb by lazy { BluGameTdb(this) }
+    // GameTDB IDs are separate from console title IDs. A user can auto-match by name
+    // or provide a valid GameTDB ID, without sending game files to the website.
+    private fun openGameTdbCoverMenu(index: Int) {
+        val game = currentGames.getOrNull(index) ?: return
+        val options = arrayOf("Find matching cover by title", "Enter GameTDB cover ID", "Open GameTDB website")
+        AlertDialog.Builder(this).setTitle("GameTDB: " + game.title.take(80))
+            .setItems(options) { _, choice ->
+                when (choice) {
+                    0 -> io.execute {
+                        try {
+                            val id = gameTdb.findIdByTitle(game.title)
+                                ?: throw IllegalStateException(
+                                    "No unique title match in the GameTDB Switch database. Try entering its five-character GameTDB ID."
+                                )
+                            gameTdb.downloadCover(game.path, id)
+                            notifyUi("onAction", "GameTDB cover saved for " + game.title)
+                            refreshGames()
+                        } catch (e: Exception) {
+                            notifyUi("onAction", "GameTDB: " + (e.message ?: "Cover not available"))
+                        }
+                    }
+                    1 -> {
+                        val input = android.widget.EditText(this).apply {
+                            hint = "e.g. BMQRA"
+                            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                                android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                            filters = arrayOf(android.text.InputFilter.LengthFilter(5))
+                        }
+                        val padding = (20f * resources.displayMetrics.density).toInt()
+                        val wrapper = android.widget.FrameLayout(this)
+                        wrapper.setPadding(padding, 0, padding, 0)
+                        wrapper.addView(input)
+                        AlertDialog.Builder(this)
+                            .setTitle("Enter GameTDB ID")
+                            .setMessage("Use the five-character ID from GameTDB. Switch 2 games might not have an entry.")
+                            .setView(wrapper)
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Get cover") { _, _ ->
+                                val id = input.text.toString().trim()
+                                io.execute {
+                                    try {
+                                        gameTdb.downloadCover(game.path, id)
+                                        notifyUi("onAction", "GameTDB cover saved for " + game.title)
+                                        refreshGames()
+                                    } catch (e: Exception) {
+                                        notifyUi("onAction", "GameTDB: " + (e.message ?: "Cover not available"))
+                                    }
+                                }
+                            }.show()
+                    }
+                    2 -> {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW,
+                                android.net.Uri.parse(BluGameTdb.WEBSITE)))
+                        } catch (_: Exception) {
+                            notifyUi("onAction", "Could not open the GameTDB website.")
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun resetGameTdbCover(index: Int) {
+        val game = currentGames.getOrNull(index) ?: return
+        io.execute {
+            if (gameTdb.removeCover(game.path)) {
+                notifyUi("onAction", "GameTDB cover removed. Your game files are unchanged.")
+                refreshGames()
+            } else {
+                notifyUi("onAction", "Could not remove the GameTDB cover.")
+            }
+        }
+    }
+
     private val settingsActions = BluSettingsActions(this)
 
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
@@ -377,12 +454,19 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     item.put("index", position)
                     item.put("title", game.title)
                     item.put("favorite", favorites.contains(game.path))
+                    val cover = try { gameTdb.cachedCover(game.path) } catch (_: Exception) { null }
+                    if (cover != null) item.put("gameTdbCover", true)
                     if (position < 32) {
                         try {
-                            val icon = GameMetadata.getIcon(game.path)
-                            if (icon.isNotEmpty() && icon.size < 350000) {
-                                item.put("art", "data:image/png;base64," +
-                                    Base64.encodeToString(icon, Base64.NO_WRAP))
+                            if (cover != null) {
+                                item.put("art", "data:image/jpeg;base64," +
+                                    Base64.encodeToString(cover.readBytes(), Base64.NO_WRAP))
+                            } else {
+                                val icon = GameMetadata.getIcon(game.path)
+                                if (icon.isNotEmpty() && icon.size < 350000) {
+                                    item.put("art", "data:image/png;base64," +
+                                        Base64.encodeToString(icon, Base64.NO_WRAP))
+                                }
                             }
                         } catch (_: Exception) { }
                     }
@@ -442,6 +526,12 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
+        @JavascriptInterface fun findGameTdbCover(index: Int) {
+            handler.post { openGameTdbCoverMenu(index) }
+        }
+        @JavascriptInterface fun resetGameTdbCover(index: Int) {
+            handler.post { this@BluSwitchHomeActivity.resetGameTdbCover(index) }
+        }
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
         @JavascriptInterface fun launchExeFSFolder() {
             handler.post { exeFSFolderPicker.launch(null) }
