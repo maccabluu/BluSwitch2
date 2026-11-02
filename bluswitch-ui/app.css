@@ -112,3 +112,12 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .blu-store-tile small { color:#8fcaff; }
 .blu-store-tile span { color:#cad7ef; font-size:12px; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .blu-store-tile:focus-visible { outline:3px solid #36c5ff; outline-offset:2px; }
+
+/* BluSwitch data browser, replacing Eden-labelled external file manager */
+.blu-user-file-list { display:flex; flex-direction:column; gap:9px; margin:16px 0 24px; }
+.blu-user-file-row { display:flex; align-items:center; gap:14px; width:100%; text-align:left; background:rgba(35,102,211,.1); border:1px solid rgba(62,115,205,.35); border-radius:14px; padding:14px; color:inherit; cursor:pointer; }
+.blu-user-file-row>span:nth-child(2) { display:flex; flex:1; flex-direction:column; min-width:0; gap:3px; }
+.blu-user-file-row strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; }
+.blu-user-file-row small { opacity:.7; font-size:12px; }
+.blu-user-file-row:focus-visible { outline:3px solid #46baff; outline-offset:2px; }
+.blu-user-preview { overflow:auto; max-height:55vh; white-space:pre-wrap; overflow-wrap:anywhere; padding:15px; border-radius:14px; background:rgba(28,68,148,.1); }
