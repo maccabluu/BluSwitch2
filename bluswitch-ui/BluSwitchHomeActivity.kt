@@ -86,9 +86,9 @@ class BluSwitchHomeActivity : AppCompatActivity() {
 
     private fun saveCover(gamePath: String, uri: android.net.Uri) {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, bounds)
-        } ?: throw IllegalArgumentException("Cannot open the selected image")
+        val boundsStream = contentResolver.openInputStream(uri)
+            ?: throw IllegalArgumentException("Cannot open the selected image")
+        boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
         require(bounds.outWidth in 1..40000 && bounds.outHeight in 1..40000) {
             "Select a valid game cover image"
         }
