@@ -133,6 +133,9 @@ window.BluSwitch = {
  },
  openAction:function(command){if(typeof this[command]==='function')this[command]();else this.open(command);},
  setStatus:function(json){try{status=JSON.parse(json);render();}catch(e){}},
+ setAdvancedSettings:function(json){if(window.BluAdvanced)window.BluAdvanced.setValues(json);},
+ advancedSettingsError:function(message){if(window.BluAdvanced)window.BluAdvanced.error(message);},
+ advancedSettingSaved:function(json){if(window.BluAdvanced)window.BluAdvanced.saved(json);},
  onAction:function(message){notice=message;alert(message);nativeCall('requestStatus');nativeCall('requestGames');},
  back:function(){
   if(current==='settings' && window.BluAdvanced && window.BluAdvanced.back())return;
