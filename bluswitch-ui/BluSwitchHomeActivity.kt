@@ -4,6 +4,13 @@ package org.yuzu.yuzu_emu.ui.main
 
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.FileOutputStream
+import java.security.MessageDigest
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.pm.ActivityInfo
@@ -43,6 +50,134 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
 
+
+    // GameTDB (https://www.gametdb.com/Switch/Downloads) artwork is optional.
+    // The site lists Switch artwork, but not every Switch 2 title is represented.
+    // Users choose their downloaded cover from Android's picker. No copyrighted
+    // cover images are bundled into the emulator.
+    private var pendingCoverGame: String? = null
+    private val coverPicker =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            val path = pendingCoverGame
+            pendingCoverGame = null
+            if (path != null && uri != null) {
+                io.execute {
+                    try {
+                        saveCover(path, uri)
+                        notifyUi("onAction", "Your game cover has been saved.")
+                        refreshGames()
+                    } catch (e: Exception) {
+                        notifyUi("onAction", "Unable to import cover: " + (e.message ?: "Invalid image"))
+                    }
+                }
+            }
+        }
+
+    private fun coverFile(gamePath: String): File {
+        val key = MessageDigest.getInstance("SHA-256")
+            .digest(gamePath.toByteArray(Charsets.UTF_8))
+            .take(16).joinToString("") { "%02x".format(it.toInt() and 255) }
+        val folder = File(filesDir, "bluswitch_game_covers")
+        if (!folder.isDirectory && !folder.mkdirs()) {
+            throw IllegalStateException("Unable to make the game cover folder")
+        }
+        return File(folder, "$key.jpg")
+    }
+
+    private fun saveCover(gamePath: String, uri: android.net.Uri) {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val boundsStream = contentResolver.openInputStream(uri)
+            ?: throw IllegalArgumentException("Cannot open the selected image")
+        boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
+        require(bounds.outWidth in 1..40000 && bounds.outHeight in 1..40000) {
+            "Select a valid game cover image"
+        }
+        var sample = 1
+        while (bounds.outWidth / sample > 1800 || bounds.outHeight / sample > 1800) {
+            sample *= 2
+        }
+        val bitmap = contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(
+                it, null, BitmapFactory.Options().apply { inSampleSize = sample }
+            )
+        } ?: throw IllegalArgumentException("Could not read this picture")
+        var scaled: Bitmap = bitmap
+        try {
+            val maxEdge = maxOf(bitmap.width, bitmap.height)
+            if (maxEdge > 900) {
+                val factor = 900.0 / maxEdge
+                scaled = Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * factor).toInt().coerceAtLeast(1),
+                    (bitmap.height * factor).toInt().coerceAtLeast(1),
+                    true
+                )
+            }
+            val target = coverFile(gamePath)
+            val temporary = File(target.parentFile, target.name + ".new")
+            val previous = File(target.parentFile, target.name + ".old")
+            try {
+                FileOutputStream(temporary).use { stream ->
+                    require(scaled.compress(Bitmap.CompressFormat.JPEG, 85, stream)) {
+                        "Cannot compress selected cover"
+                    }
+                    stream.fd.sync()
+                }
+                require(temporary.length() in 1..1000000) { "Cover file is too large" }
+                if (previous.exists()) previous.delete()
+                if (target.exists() && !target.renameTo(previous)) {
+                    throw IllegalStateException("Could not replace previous cover")
+                }
+                if (!temporary.renameTo(target)) {
+                    if (previous.exists()) previous.renameTo(target)
+                    throw IllegalStateException("Could not save game cover")
+                }
+                previous.delete()
+            } finally {
+                temporary.delete()
+            }
+        } finally {
+            if (scaled !== bitmap && !scaled.isRecycled) scaled.recycle()
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+    }
+
+    private fun openGameTdb(index: Int) {
+        val game = currentGames.getOrNull(index) ?: return
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("BluSwitch game title", game.title))
+            val page = android.net.Uri.parse("https://www.gametdb.com/Switch/Search")
+            startActivity(Intent(Intent.ACTION_VIEW, page))
+            android.widget.Toast.makeText(this,
+                "Game title copied. Search on GameTDB, download a cover, then use Cover.",
+                android.widget.Toast.LENGTH_LONG).show()
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(this,
+                "Could not open GameTDB. Check your browser.",
+                android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun chooseCover(index: Int) {
+        pendingCoverGame = currentGames.getOrNull(index)?.path ?: return
+        coverPicker.launch("image/*")
+    }
+
+    private fun resetCover(index: Int) {
+        val path = currentGames.getOrNull(index)?.path ?: return
+        io.execute {
+            try {
+                val cover = coverFile(path)
+                require(!cover.exists() || cover.delete()) { "Cannot delete cover image" }
+                refreshGames()
+                notifyUi("onAction", "Your original game artwork has been restored.")
+            } catch (e: Exception) {
+                notifyUi("onAction", "Could not reset game cover.")
+            }
+        }
+    }
+
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
     private val gameFolderPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -58,6 +193,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                                 notifyUi("onAction", "This game folder is already in your library.")
                             } else {
                                 NativeConfig.addGameDir(GameDir(uri.toString(), true))
+                                NativeConfig.saveGlobalConfig() // Persist across EmulationActivity.reloadGlobalConfig()
                                 notifyUi("onAction", "Game folder added to BluSwitch 2.")
                             }
                             refreshStatus()
@@ -71,6 +207,41 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 }
             }
         }
+
+    // Persist single-file imports separately from upstream scanned game folders.
+    // SharedPreferences and SAF grants survive closing a game and normal APK upgrades.
+    private val singleGamePicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                    val files = getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
+                    val saved = (files.getStringSet("uris", emptySet()) ?: emptySet()).toMutableSet()
+                    saved.add(uri.toString())
+                    files.edit().putStringSet("uris", saved).apply()
+                    notifyUi("onAction", "Game file saved in your BluSwitch 2 library.")
+                } catch (ex: Exception) {
+                    notifyUi("onAction", "Could not save game file access: " + (ex.message ?: "Permission denied"))
+                }
+            }
+        }
+
+    private fun importedGameUris(): List<String> =
+        (getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
+            .getStringSet("uris", emptySet()) ?: emptySet()).sorted()
+
+    private fun removeImportedGame(index: Int) {
+        val files = importedGameUris()
+        if (index !in files.indices) return
+        val old = files[index]
+        val remaining = files.toMutableSet()
+        remaining.remove(old)
+        getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
+            .edit().putStringSet("uris", remaining).apply()
+        notifyUi("onAction", "Game file removed from the BluSwitch library, not from your device.")
+    }
 
     private val prodKeysPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -153,6 +324,17 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 val dirs = JSONArray()
                 NativeConfig.getGameDirs().forEach { dirs.put(it.uriString) }
                 state.put("folders", dirs)
+                val imported = JSONArray()
+                importedGameUris().forEach { path ->
+                    val fileUri = android.net.Uri.parse(path)
+                    val file = DocumentFile.fromSingleUri(this, fileUri)
+                    val item = JSONObject()
+                    item.put("name", try { file?.name ?: fileUri.lastPathSegment ?: "Game file" }
+                        catch (_: Exception) { "Game file" })
+                    item.put("available", try { file?.exists() == true } catch (_: Exception) { false })
+                    imported.put(item)
+                }
+                state.put("files", imported)
                 notifyUi("setStatus", state.toString())
             } catch (ex: Exception) {
                 notifyUi("onAction", "Could not check setup status.")
@@ -167,6 +349,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 if (index !in dirs.indices) return@execute
                 dirs.removeAt(index)
                 NativeConfig.setGameDirs(dirs.toTypedArray())
+                NativeConfig.saveGlobalConfig()
                 notifyUi("onAction", "Game folder removed from library. Files were not deleted.")
                 refreshStatus()
                 refreshGames()
@@ -234,7 +417,20 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
         io.execute {
             try {
-                val found = GameHelper.getGames()
+                val found = GameHelper.getGames().toMutableList()
+                // SAF file imports are not part of GameHelper's folder scanner.
+                // Re-add valid selections from persistent storage after every native scan.
+                importedGameUris().forEach { path ->
+                    try {
+                        if (found.none { it.path == path }) {
+                            val uri = android.net.Uri.parse(path)
+                            if (DocumentFile.fromSingleUri(this, uri)?.exists() == true) {
+                                val selected = GameHelper.getGame(uri, true)
+                                if (selected != null) found.add(selected)
+                            }
+                        }
+                    } catch (_: Exception) { /* Retain saved selection for later retry */ }
+                }
                 currentGames = found
                 val favorites = getSharedPreferences("bluswitch_home", MODE_PRIVATE)
                     .getStringSet("favorites", emptySet()) ?: emptySet()
@@ -246,10 +442,17 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     item.put("favorite", favorites.contains(game.path))
                     if (position < 32) {
                         try {
-                            val icon = GameMetadata.getIcon(game.path)
-                            if (icon.isNotEmpty() && icon.size < 350000) {
-                                item.put("art", "data:image/png;base64," +
-                                    Base64.encodeToString(icon, Base64.NO_WRAP))
+                            val custom = coverFile(game.path)
+                            if (custom.isFile && custom.length() in 1..1000000) {
+                                item.put("art", "data:image/jpeg;base64," +
+                                    Base64.encodeToString(custom.readBytes(), Base64.NO_WRAP))
+                                item.put("customCover", true)
+                            } else {
+                                val icon = GameMetadata.getIcon(game.path)
+                                if (icon.isNotEmpty() && icon.size < 350000) {
+                                    item.put("art", "data:image/png;base64," +
+                                        Base64.encodeToString(icon, Base64.NO_WRAP))
+                                }
                             }
                         } catch (_: Exception) { }
                     }
@@ -283,10 +486,9 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         val run = {
             val prefs = PreferenceManager.getDefaultSharedPreferences(this)
             prefs.edit().putLong(game.keyLastPlayedTime, System.currentTimeMillis()).apply()
-            val intent = Intent(this, EmulationActivity::class.java)
-            intent.putExtra("game", game)
-            intent.putExtra("custom", true)
-            startActivity(intent)
+            // Native core expects EXTRA_SELECTED_GAME ("SelectedGame"), not "game".
+            // Use the upstream launcher so the actual game reaches EmulationFragment.
+            EmulationActivity.launch(this, game)
         }
         if (NativeLibrary.gameRequiresFirmware(game.programId) &&
             !NativeLibrary.isFirmwareAvailable()) {
@@ -310,7 +512,22 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
+        @JavascriptInterface fun openGameTdb(index: Int) {
+            handler.post { this@BluSwitchHomeActivity.openGameTdb(index) }
+        }
+        @JavascriptInterface fun pickCover(index: Int) {
+            handler.post { this@BluSwitchHomeActivity.chooseCover(index) }
+        }
+        @JavascriptInterface fun resetCover(index: Int) {
+            handler.post { this@BluSwitchHomeActivity.resetCover(index) }
+        }
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
+        @JavascriptInterface fun pickGameFile() {
+            handler.post { singleGamePicker.launch(arrayOf("*/*")) }
+        }
+        @JavascriptInterface fun removeGameFile(index: Int) {
+            handler.post { removeImportedGame(index) }
+        }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
         @JavascriptInterface fun requestStorageAccess() {

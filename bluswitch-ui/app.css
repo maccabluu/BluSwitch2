@@ -62,3 +62,20 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .folder-row span{font-size:12px;overflow-wrap:anywhere;min-width:0}
 .screen-panel{width:100%;max-width:1000px;margin:0 auto;padding:10px 2px}
 @media(max-height:500px){.settings-grid{gap:7px}.setting-card{padding:7px}.screen-panel{gap:7px}.screen-panel .notice{padding:7px 10px;margin:0}}
+
+/* GameTDB artwork lookup and personal cover selection */
+.cover-site,.cover-choose,.cover-reset{
+  position:absolute;z-index:4;bottom:7px;border:0;border-radius:9px;
+  padding:4px 6px;font-size:clamp(9px,1.6vh,12px);font-weight:700;
+  background:#092a69ec;color:#e9f7ff;
+}
+.cover-site{left:5px}
+.cover-choose{right:5px}
+.cover-reset{right:5px;bottom:33px;background:#265790ed}
+.game-card .game-label{bottom:24px}
+.screen-panel h2{font-size:clamp(12px,2.4vh,18px);margin:4px 0 0}
+@media(max-height:460px){
+ .cover-site,.cover-choose,.cover-reset{padding:2px 4px;font-size:9px}
+ .cover-reset{bottom:25px}
+ .game-card .game-label{bottom:18px}
+}

@@ -51,7 +51,10 @@ function card(g) {
  return '<article class="game-card">'+art+
  '<div class="game-label">'+safe(g.title)+'</div>'+
  '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Open</button>'+
- '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button></article>';
+ '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button>'+
+ '<button class="cover-site" onclick="BluSwitch.findCover('+g.index+')" aria-label="Find cover on GameTDB for '+safe(g.title)+'">GameTDB</button>'+
+ '<button class="cover-choose" onclick="BluSwitch.chooseCover('+g.index+')" aria-label="Choose downloaded cover for '+safe(g.title)+'">Cover</button>'+
+ (g.customCover?'<button class="cover-reset" onclick="BluSwitch.resetCover('+g.index+')" aria-label="Reset custom cover for '+safe(g.title)+'">Reset</button>':'')+'</article>';
 }
 function library(showFavorites) {
  var items = showFavorites ? games.filter(function(g){return !!g.favorite;}) : games;
@@ -61,6 +64,7 @@ function library(showFavorites) {
     'No games found yet. Add your own game folder to start.';
   return '<div class="empty-home"><h2>'+(showFavorites?'Your favourites':'Your game library')+'</h2><p>'+msg+'</p><div class="action-row" style="justify-content:center">'+
    '<button class="primary-btn" onclick="BluSwitch.addFolder()">Add game folder</button>'+
+   '<button class="secondary-btn" onclick="BluSwitch.addGameFile()">Add game file</button>'+
    '<button class="secondary-btn" onclick="BluSwitch.refresh()">Refresh library</button></div></div>';
  }
  return '<section class="carousel-panel"><div class="carousel-meta"><span>'+
@@ -68,7 +72,7 @@ function library(showFavorites) {
  '</span><div><button onclick="BluSwitch.refresh()">Refresh</button><button onclick="BluSwitch.addFolder()">+ Add game folder</button></div></div>'+
  '<div class="game-strip" aria-label="Your games">'+items.map(card).join('')+'</div></section>';
 }
-var status = {keys:false, firmware:false, folders:[], ready:false};
+var status = {keys:false, firmware:false, folders:[], files:[], ready:false};
 var notice = '';
 function actionButton(title,command,secondary) {
  return '<button class="'+(secondary?'secondary-btn':'primary-btn')+'" onclick="BluSwitch.openAction(\''+command+'\')">'+safe(title)+'</button>';
@@ -77,14 +81,23 @@ function section(title,description,actions) {
  return '<section class="screen-panel"><h1>'+safe(title)+'</h1><p class="notice">'+safe(description)+'</p><div class="action-row">'+(actions||'')+'</div></section>';
 }
 function renderFiles() {
- var folders = (status.folders||[]);
- var list = folders.length ? '<div class="folder-list">'+folders.map(function(folder,i){
+ var folders=(status.folders||[]), files=(status.files||[]);
+ var folderList=folders.length ? '<div class="folder-list">'+folders.map(function(folder,i){
    return '<div class="folder-row"><span>'+safe(folder)+'</span><button class="secondary-btn" onclick="BluSwitch.removeFolder('+i+')">Remove</button></div>';
- }).join('')+'</div>' : '<p class="notice">No game folders added yet.</p>';
- var storage = status.ready ? (status.allFiles ? 'Switch 2 folder access: enabled.' : 'Switch 2 loose ExeFS folders might require Android All files access.') : '';
- return '<section class="screen-panel"><h1>Game files</h1><p class="notice">Add a folder containing your own game dumps. BluSwitch 2 will scan for supported files.</p>'+list+
- '<div class="action-row">'+actionButton('Add game folder','addFolder')+actionButton('Refresh library','refresh',true)+
- (!status.allFiles ? actionButton('Enable Switch 2 folder access','enableStorage',true) : '')+'</div><p class="notice">'+safe(storage)+'</p></section>';
+ }).join('')+'</div>' : '<p class="notice">No game folders selected.</p>';
+ var fileList=files.length ? '<div class="folder-list">'+files.map(function(file,i){
+   return '<div class="folder-row"><span>'+safe(file.name)+(file.available?'':' (missing access)')+'</span>'+
+      '<button class="secondary-btn" onclick="BluSwitch.removeGameFile('+i+')">Remove</button></div>';
+ }).join('')+'</div>' : '<p class="notice">No individual game files selected.</p>';
+ var storage=status.ready ? (status.allFiles?'Loose ExeFS folder access enabled.':'Loose ExeFS folders may need Android All files access.') : '';
+ return '<section class="screen-panel"><h1>Game files</h1>'+
+  '<p class="notice">Your selected folders and game files are kept when you close a game. Only files recognised by the emulator appear in Library.</p>'+
+  '<h2>Game folders</h2>'+folderList+
+  '<h2>Individual game files</h2>'+fileList+
+  '<div class="action-row">'+actionButton('Add game folder','addFolder')+
+  actionButton('Add game file','addGameFile')+actionButton('Refresh library','refresh',true)+
+  (!status.allFiles?actionButton('Enable ExeFS access','enableStorage',true):'')+
+  '</div><p class="notice">'+safe(storage)+'</p></section>';
 }
 function renderSettings() {
  var keyText = status.ready ? (status.keys ? 'Installed' : 'Not installed') : 'Checking';
@@ -119,7 +132,15 @@ window.BluSwitch = {
  refresh:function(){ busy=true;render();nativeCall('requestGames'); },
  play:function(index){nativeCall('launchGame',index);},
  favorite:function(index){nativeCall('favorite',index);},
+ findCover:function(index){nativeCall('openGameTdb',index);},
+ chooseCover:function(index){nativeCall('pickCover',index);},
+ resetCover:function(index){nativeCall('resetCover',index);},
  addFolder:function(){nativeCall('pickGameFolder');},
+ addGameFile:function(){nativeCall('pickGameFile');},
+ removeGameFile:function(index){
+  if(confirm('Remove this file from the BluSwitch 2 library? The game file stays on your device.'))
+   nativeCall('removeGameFile',index);
+ },
  importKeys:function(){nativeCall('pickProdKeys');},
  enableStorage:function(){nativeCall('requestStorageAccess');},
  checkStatus:function(){nativeCall('requestStatus');},
