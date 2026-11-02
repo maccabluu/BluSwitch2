@@ -148,6 +148,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 state.put("ready", true)
                 state.put("keys", NativeLibrary.areKeysPresent())
                 state.put("firmware", NativeLibrary.isFirmwareAvailable())
+                state.put("allFiles", android.os.Environment.isExternalStorageManager())
                 val dirs = JSONArray()
                 NativeConfig.getGameDirs().forEach { dirs.put(it.uriString) }
                 state.put("folders", dirs)
@@ -255,7 +256,15 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private fun launch(index: Int) {
         val game = currentGames.getOrNull(index) ?: return
         val uri = android.net.Uri.parse(game.path)
-        if (DocumentFile.fromSingleUri(this, uri)?.exists() != true) {
+        val accessible = try {
+            when (uri.scheme) {
+                "content" -> DocumentFile.fromSingleUri(this, uri)?.exists() == true
+                "file" -> uri.path?.let { File(it).exists() } ?: false
+                null -> File(game.path).exists()
+                else -> true // Native engine-specific game paths are checked by the engine.
+            }
+        } catch (_: Exception) { false }
+        if (!accessible) {
             AlertDialog.Builder(this)
                 .setMessage("This game file is no longer accessible. Check your game folder.")
                 .setPositiveButton("OK", null).show()
@@ -295,6 +304,26 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
+        @JavascriptInterface fun requestStorageAccess() {
+            handler.post {
+                if (android.os.Build.VERSION.SDK_INT >= 30 &&
+                    !android.os.Environment.isExternalStorageManager()
+                ) {
+                    try {
+                        startActivity(Intent(
+                            android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            android.net.Uri.parse("package:" + packageName)
+                        ))
+                    } catch (_: Exception) {
+                        startActivity(Intent(
+                            android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
+                        ))
+                    }
+                } else {
+                    refreshStatus()
+                }
+            }
+        }
         @JavascriptInterface fun removeGameFolder(index: Int) { handler.post { this@BluSwitchHomeActivity.removeGameFolder(index) } }
         @JavascriptInterface fun exit() { handler.post { finishAffinity() } }
         @JavascriptInterface fun showInfo(title: String, message: String) {
