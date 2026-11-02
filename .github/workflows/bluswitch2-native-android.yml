@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - bluswitch2-original-ui
   workflow_dispatch:
 
 permissions:
@@ -85,6 +86,11 @@ jobs:
           </vector>''')
           print('Applied BluSwitch 2 package, name and icon; upstream emulator and licences preserved')
           PY
+      - name: Integrate original BluSwitch 2 home UI
+        run: |
+          python3 scripts/apply-ui.py nx2-source
+          test -f nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/ui/main/BluSwitchHomeActivity.kt
+          test -f nx2-source/src/android/app/src/main/assets/bluswitch/index.html
       - name: Provide SDL3 Android Java bindings before Kotlin compilation
         run: |
           set -euo pipefail
