@@ -125,7 +125,7 @@ function render() {
  else if(current==='collections')view.innerHTML=library(true);
  else if(current==='files')view.innerHTML=renderFiles();
  else if(current==='settings')view.innerHTML=renderSettings();
- else if(current==='store')view.innerHTML=section('Store','BluSwitch 2 does not have a game store. Add your own legally obtained game files using Files.',actionButton('Open Files','files'));
+ else if(current==='store')view.innerHTML=window.BluStore ? window.BluStore.render() : section('Homebrew Store','Homebrew catalogue unavailable.','');
  else if(current==='media')view.innerHTML=section('Media','Media capture management is not available yet. This screen is part of BluSwitch 2 and will not open another emulator.',actionButton('Back to library','home'));
  else if(current==='saves')view.innerHTML=section('Saves','The emulator stores game saves in its app data. Save browsing and backup controls are not available in this version.',actionButton('Back to library','home'));
  else if(current==='controller')view.innerHTML=renderController();
@@ -133,6 +133,8 @@ function render() {
  else view.innerHTML=library(false);
 }
 window.BluSwitch = {
+ isStoreOpen:function(){return current==='store';},
+ setStoreCatalog:function(json){if(window.BluStore)window.BluStore.receive(json);},
  setGames:function(json) {
   try { games=JSON.parse(json); busy=false; error=''; render(); }
   catch(e) {this.showError('Could not load your game list.');}
