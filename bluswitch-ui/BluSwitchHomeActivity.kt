@@ -42,6 +42,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private val io = Executors.newSingleThreadExecutor()
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
+    private val settingsActions = BluSettingsActions(this)
 
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
     private val gameFolderPicker =
@@ -387,6 +388,9 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
+        @JavascriptInterface fun openSetting(id: String) {
+            handler.post { if (!closing) settingsActions.open(id) }
+        }
         @JavascriptInterface fun requestStorageAccess() {
             handler.post {
                 if (android.os.Build.VERSION.SDK_INT >= 30 &&
@@ -420,6 +424,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         closing = true
+        settingsActions.close()
         io.shutdownNow()
         browser.removeJavascriptInterface("BluNative")
         browser.destroy()
