@@ -85,19 +85,26 @@ jobs:
           </vector>''')
           print('Applied BluSwitch 2 package, name and icon; upstream emulator and licences preserved')
           PY
+      - name: Provide SDL3 Android Java bindings before Kotlin compilation
+        run: |
+          set -euo pipefail
+          # Eden's native CMake config generates these during a later task, but
+          # Kotlin imports org.libsdl.app.SDL earlier in the Gradle task graph.
+          # Use official SDL3 release Java bindings as a build prerequisite.
+          git clone --depth 1 --branch release-3.4.8 https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/sdl3-source"
+          DEST="nx2-source/externals/generated/sdl/java"
+          mkdir -p "$DEST"
+          cp -R "$RUNNER_TEMP/sdl3-source/android-project/app/src/main/java/." "$DEST/"
+          test -s "$DEST/org/libsdl/app/SDL.java"
+          echo "SDL3 Android bindings copied: $(find "$DEST/org/libsdl/app" -name '*.java' | wc -l) Java files"
       - name: Build ARM64 native Android APK
         run: |
+          set -euo pipefail
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export CMAKE_BUILD_PARALLEL_LEVEL=2
           cd nx2-source/src/android
           chmod +x gradlew
           printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > local.properties
-          set -o pipefail
-          # Upstream CMake copies the real SDL3 Java bindings into
-          # externals/generated/sdl/java during configure. Kotlin needs
-          # these before compileMainlineDebugKotlin runs.
-          ./gradlew --no-daemon --no-parallel --max-workers=2 -PYUZU_ANDROID_ARGS="-DGLSLANGVALIDATOR=$(command -v glslangValidator)" ':app:configureCMakeMainlineDebug[arm64-v8a]' 2>&1 | tee "$GITHUB_WORKSPACE/cmake-configure.log"
-          test -f ../../externals/generated/sdl/java/org/libsdl/app/SDL.java
           ./gradlew --no-daemon --no-parallel --max-workers=2 -PYUZU_ANDROID_ARGS="-DGLSLANGVALIDATOR=$(command -v glslangValidator)" :app:assembleMainlineDebug 2>&1 | tee "$GITHUB_WORKSPACE/compile.log"
       - name: Confirm APK contains native emulator libraries
         run: |
@@ -129,7 +136,5 @@ jobs:
         if: failure()
         with:
           name: BluSwitch2-Compiler-Log
-          path: |
-            compile.log
-            cmake-configure.log
+          path: compile.log
           if-no-files-found: ignore
