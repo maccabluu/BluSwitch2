@@ -101,3 +101,14 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .blu-controller-tile span{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:24px}
 .blu-controller-tile:focus-visible,.blu-controller-tile:hover{background:#d4eaff;outline-color:#147cff}
 @media(max-width:620px){.blu-controller-grid{grid-template-columns:1fr}.blu-controller-tile{min-height:67px}}
+
+/* BluSwitch native Homebrew Store */
+.blu-store .action-row { align-items:center; flex-wrap:wrap; margin:14px 0; }
+.blu-store input,.blu-store select { background:#101b37; color:#fff; border:1px solid #405c91; border-radius:12px; padding:12px; font:inherit; min-width:180px; }
+.blu-store input { flex:1; }
+.blu-store-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; padding:8px 0 20px; }
+.blu-store-tile { text-align:left; border:1px solid #355284; border-radius:16px; background:linear-gradient(140deg,#182d57,#0c1731); color:white; padding:15px; min-height:118px; display:flex; flex-direction:column; gap:7px; cursor:pointer; }
+.blu-store-tile strong { font-size:15px; }
+.blu-store-tile small { color:#8fcaff; }
+.blu-store-tile span { color:#cad7ef; font-size:12px; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.blu-store-tile:focus-visible { outline:3px solid #36c5ff; outline-offset:2px; }
