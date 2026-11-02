@@ -52,6 +52,9 @@ class BluSettingsActions(private val activity: AppCompatActivity) {
                 "advanced" -> settings(Settings.MenuTag.SECTION_ROOT)
                 "app" -> settings(Settings.MenuTag.SECTION_APP_SETTINGS)
                 "controls" -> settings(Settings.MenuTag.SECTION_INPUT)
+                "player-one" -> settings(Settings.MenuTag.SECTION_INPUT_PLAYER_ONE)
+                "player-two" -> settings(Settings.MenuTag.SECTION_INPUT_PLAYER_TWO)
+                "input-overlay" -> settings(Settings.MenuTag.SECTION_INPUT_OVERLAY)
                 "profiles" -> subscreen(SettingsSubscreen.PROFILE_MANAGER)
                 "drivers" -> subscreen(SettingsSubscreen.DRIVER_MANAGER)
                 "freedreno" -> {
@@ -188,7 +191,8 @@ class BluSettingsActions(private val activity: AppCompatActivity) {
             .setTitle("BluSwitch 2")
             .setMessage(
                 "Blu Studio experimental native Android emulator\n\n" +
-                "Engine: GPL-licensed Eden NX2 and contributing upstream projects.\n" +
+                "Native emulator built using open-source contributions.\n" +
+                "See Licences for upstream authors and source credits.\n" +
                 "Native build: " + build + "\n\n" +
                 "Unofficial application. Not affiliated with Nintendo."
             )

@@ -103,6 +103,20 @@ function renderFiles() {
 function renderSettings() {
  return window.BluSettings ? window.BluSettings.render(status) : '<p>Settings are loading...</p>';
 }
+function renderController() {
+ var buttons=[
+  ['controls','Button mapping','Set up your AYN Thor buttons and controller input'],
+  ['player-one','Player 1 controls','Configure the main physical controller'],
+  ['player-two','Player 2 controls','Set up a second connected controller'],
+  ['input-overlay','On-screen controls','Touch controls, position and overlay settings']
+ ];
+ return '<section class="screen-panel blu-controller-hub"><h1>Controller</h1>'+
+  '<p class="notice">Change your controls using the real emulator input settings. Your mappings are kept inside BluSwitch 2.</p>'+
+  '<div class="blu-controller-grid">'+buttons.map(function(item){
+    return '<button class="blu-controller-tile" type="button" onclick="BluSwitch.controlSetting(&quot;'+item[0]+'&quot;)">'+
+      '<strong>'+safe(item[1])+'</strong><small>'+safe(item[2])+'</small><span aria-hidden="true">›</span></button>';
+  }).join('')+'</div></section>';
+}
 
 function render() {
  renderDock();
@@ -114,7 +128,7 @@ function render() {
  else if(current==='store')view.innerHTML=section('Store','BluSwitch 2 does not have a game store. Add your own legally obtained game files using Files.',actionButton('Open Files','files'));
  else if(current==='media')view.innerHTML=section('Media','Media capture management is not available yet. This screen is part of BluSwitch 2 and will not open another emulator.',actionButton('Back to library','home'));
  else if(current==='saves')view.innerHTML=section('Saves','The emulator stores game saves in its app data. Save browsing and backup controls are not available in this version.',actionButton('Back to library','home'));
- else if(current==='controller')view.innerHTML=section('Controller','BluSwitch 2 uses the emulator core for controls. Dedicated AYN Thor controller mapping from this screen is still being developed.',actionButton('Back to library','home'));
+ else if(current==='controller')view.innerHTML=renderController();
  else if(current==='handheld')view.innerHTML=section('Handheld Mode','BluSwitch 2 is running in landscape handheld mode. Native gameplay graphics and input settings are controlled by the emulator engine.',actionButton('Back to library','home'));
  else view.innerHTML=library(false);
 }
@@ -134,6 +148,7 @@ window.BluSwitch = {
   if(confirm('Remove this file from the BluSwitch 2 library? The game file stays on your device.'))
    nativeCall('removeGameFile',index);
  },
+ controlSetting:function(id){nativeCall('openSetting',id);},
  importKeys:function(){nativeCall('pickProdKeys');},
  enableStorage:function(){nativeCall('requestStorageAccess');},
  checkStatus:function(){nativeCall('requestStatus');},

@@ -8,11 +8,12 @@ const home = fs.readFileSync('bluswitch-ui/BluSwitchHomeActivity.kt', 'utf8');
 const actions = fs.readFileSync('bluswitch-ui/BluSettingsActions.kt', 'utf8');
 const apply = fs.readFileSync('scripts/apply-ui.py', 'utf8');
 const build = fs.readFileSync('.github/workflows/bluswitch2-native-android.yml','utf8');
-const names=['readiness','advanced','app','controls','profiles','drivers','freedreno','multiplayer','applets','data','folders','verify','logs','gpu-logs','data-folder','system-info','about'];
+const names=['readiness','advanced','app','profiles','drivers','freedreno','multiplayer','applets','data','folders','verify','logs','gpu-logs','data-folder','system-info','about'];
 for(const name of names) {
   assert(settings.includes("'"+name+"'"), 'Missing settings tile: '+name);
   if(name!=='folders')assert(actions.includes('"'+name+'" ->'), 'Missing native handler: '+name);
 }
+assert(actions.includes('"controls" -> settings(Settings.MenuTag.SECTION_INPUT)'), 'Controller tab must call native input mapping');
 assert(apply.includes('BluSettingsActions.kt'),'Native actions missing from APK copy');
 assert(apply.includes('settings-hub.js'),'Settings UI missing from APK assets');
 assert(home.includes('fun openSetting(id: String)'),'Settings Javascript bridge missing');
