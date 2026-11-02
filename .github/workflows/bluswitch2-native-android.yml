@@ -93,6 +93,11 @@ jobs:
           chmod +x gradlew
           printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > local.properties
           set -o pipefail
+          # Upstream CMake copies the real SDL3 Java bindings into
+          # externals/generated/sdl/java during configure. Kotlin needs
+          # these before compileMainlineDebugKotlin runs.
+          ./gradlew --no-daemon --no-parallel --max-workers=2 -PYUZU_ANDROID_ARGS="-DGLSLANGVALIDATOR=$(command -v glslangValidator)" ':app:configureCMakeMainlineDebug[arm64-v8a]' 2>&1 | tee "$GITHUB_WORKSPACE/cmake-configure.log"
+          test -f ../../externals/generated/sdl/java/org/libsdl/app/SDL.java
           ./gradlew --no-daemon --no-parallel --max-workers=2 -PYUZU_ANDROID_ARGS="-DGLSLANGVALIDATOR=$(command -v glslangValidator)" :app:assembleMainlineDebug 2>&1 | tee "$GITHUB_WORKSPACE/compile.log"
       - name: Confirm APK contains native emulator libraries
         run: |
@@ -124,5 +129,7 @@ jobs:
         if: failure()
         with:
           name: BluSwitch2-Compiler-Log
-          path: compile.log
+          path: |
+            compile.log
+            cmake-configure.log
           if-no-files-found: ignore
