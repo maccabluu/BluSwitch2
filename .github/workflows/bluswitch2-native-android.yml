@@ -13,6 +13,7 @@ on:
       - 'bluswitch-ui/**'
       - 'scripts/apply-ui.py'
       - 'scripts/verify-navigation.cjs'
+      - 'scripts/verify-bluswitch-folder.cjs'
       - 'scripts/verify-emulation-library.cjs'
       - 'scripts/verify-container-inspector.cjs'
       - 'scripts/brand-ingame.py'
@@ -40,6 +41,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify BluSwitch navigation never opens Eden
         run: node scripts/verify-navigation.cjs
+      - name: Verify BluSwitch folder never opens Eden-labelled file manager
+        run: node scripts/verify-bluswitch-folder.cjs
       - name: Verify native game launching and import persistence
         run: node scripts/verify-emulation-library.cjs
       - name: Verify NSP and XCI archive inspector wiring
