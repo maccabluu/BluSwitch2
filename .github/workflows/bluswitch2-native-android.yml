@@ -7,6 +7,7 @@ on:
     paths:
       - 'bluswitch-ui/**'
       - 'scripts/apply-ui.py'
+      - 'scripts/verify-navigation.cjs'
       - '.github/workflows/bluswitch2-native-android.yml'
   workflow_dispatch:
 
@@ -23,6 +24,8 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      - name: Verify BluSwitch navigation never opens Eden
+        run: node scripts/verify-navigation.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
