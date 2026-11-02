@@ -145,6 +145,23 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         io.execute {
             try {
                 val games = GameHelper.findExeFSGames(File(path))
+                // Remember successfully recognised extracted Switch 2 game folders,
+                // so they remain in the library after gameplay and a full restart.
+                if (games.isNotEmpty()) {
+                    try {
+                        contentResolver.takePersistableUriPermission(
+                            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                        val savedDirs = NativeConfig.getGameDirs()
+                        if (savedDirs.none { it.uriString == uri.toString() }) {
+                            NativeConfig.addGameDir(GameDir(uri.toString(), true))
+                            NativeConfig.saveGlobalConfig()
+                        }
+                    } catch (ex: Exception) {
+                        notifyUi("onAction", "Game found, but BluSwitch 2 could not save this folder: " +
+                            (ex.message ?: "Storage permission missing"))
+                    }
+                }
                 runOnUiThread {
                     if (closing) return@runOnUiThread
                     when (games.size) {
