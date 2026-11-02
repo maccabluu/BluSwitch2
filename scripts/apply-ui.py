@@ -21,7 +21,7 @@ target.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(repo / "bluswitch-ui/BluSwitchHomeActivity.kt", target)
 assets = app / "src/main/assets/bluswitch"
 assets.mkdir(parents=True, exist_ok=True)
-for name in ("index.html", "app.css", "app.js"):
+for name in ("index.html", "app.css", "app.js", "advanced-settings.js"):
     shutil.copyfile(repo / ("bluswitch-ui/" + name), assets / name)
 
 s = manifest.read_text()
