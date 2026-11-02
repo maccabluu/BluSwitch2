@@ -129,6 +129,10 @@ window.BluSwitch = {
  openAction:function(command){if(typeof this[command]==='function')this[command]();else this.open(command);},
  setStatus:function(json){try{status=JSON.parse(json);render();}catch(e){}},
  onAction:function(message){notice=message;alert(message);nativeCall('requestStatus');nativeCall('requestGames');},
+ back:function(){
+  if(current !== 'home') {current='home';render();}
+  else nativeCall('exit');
+ },
  open:function(id){
   if(id==='power'){
    if(confirm('Exit BluSwitch 2?'))nativeCall('exit');return;
