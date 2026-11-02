@@ -8,6 +8,10 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.FileOutputStream
+import java.security.MessageDigest
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -146,6 +150,127 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         return super.dispatchGenericMotionEvent(event)
     }
 
+
+
+    // User-chosen game covers live in the app's own storage and survive APK upgrades.
+    private var pendingCoverPath: String? = null
+    private val coverPicker =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            val gamePath = pendingCoverPath
+            pendingCoverPath = null
+            if (uri != null && gamePath != null) {
+                io.execute {
+                    try {
+                        importCover(gamePath, uri)
+                        notifyUi("onAction", "New game cover saved.")
+                        refreshGames()
+                    } catch (ex: Exception) {
+                        notifyUi("onAction", "Could not save cover: " + (ex.message ?: "Invalid image"))
+                    }
+                }
+            }
+        }
+
+    private fun coverFile(path: String): File {
+        val id = MessageDigest.getInstance("SHA-256")
+            .digest(path.toByteArray(Charsets.UTF_8))
+            .take(20).joinToString("") { byte -> "%02x".format(byte) }
+        val folder = File(filesDir, "bluswitch_covers")
+        if (!folder.isDirectory && !folder.mkdirs()) {
+            throw IllegalStateException("The cover artwork folder could not be created")
+        }
+        return File(folder, "$id.jpg")
+    }
+
+    private fun importCover(path: String, uri: android.net.Uri) {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        } ?: throw IllegalArgumentException("Cannot open this image")
+        require(bounds.outWidth in 1..40000 && bounds.outHeight in 1..40000) {
+            "Choose a valid JPEG, PNG or WebP picture"
+        }
+        var sample = 1
+        while (bounds.outWidth / sample > 2304 || bounds.outHeight / sample > 2304) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bitmap = contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, options)
+        } ?: throw IllegalArgumentException("Could not decode the cover image")
+
+        var selected: Bitmap = bitmap
+        var output: Bitmap = bitmap
+        try {
+            // Match BluBox's retail wraparound cropping. Landscape images use their right-hand front panel.
+            if (bitmap.width > bitmap.height * 1.15f) {
+                val frontWidth = (bitmap.height * 0.71f).toInt().coerceIn(1, bitmap.width)
+                selected = Bitmap.createBitmap(bitmap, bitmap.width - frontWidth, 0,
+                    frontWidth, bitmap.height)
+            }
+            val edge = maxOf(selected.width, selected.height)
+            if (edge > 1024) {
+                val scale = 1024.0 / edge
+                output = Bitmap.createScaledBitmap(
+                    selected,
+                    (selected.width * scale).toInt().coerceAtLeast(1),
+                    (selected.height * scale).toInt().coerceAtLeast(1),
+                    true
+                )
+            } else output = selected
+            val destination = coverFile(path)
+            val temp = File(destination.parentFile, destination.name + ".new")
+            try {
+                FileOutputStream(temp).use { stream ->
+                    if (!output.compress(Bitmap.CompressFormat.JPEG, 82, stream)) {
+                        throw IllegalStateException("Could not compress cover")
+                    }
+                    stream.fd.sync()
+                }
+                if (temp.length() !in 1..1_000_000) {
+                    throw IllegalArgumentException("Cover size exceeds the 1 MB limit")
+                }
+                val backup = File(destination.parentFile, destination.name + ".backup")
+                if (backup.exists()) backup.delete()
+                if (destination.exists() && !destination.renameTo(backup)) {
+                    throw IllegalStateException("Could not replace old cover")
+                }
+                if (!temp.renameTo(destination)) {
+                    if (backup.exists()) backup.renameTo(destination)
+                    throw IllegalStateException("Could not save new cover")
+                }
+                backup.delete()
+            } finally {
+                temp.delete()
+            }
+        } finally {
+            if (output !== selected && !output.isRecycled) output.recycle()
+            if (selected !== bitmap && !selected.isRecycled) selected.recycle()
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+    }
+
+    private fun pickCover(index: Int) {
+        val path = currentGames.getOrNull(index)?.path ?: return
+        pendingCoverPath = path
+        coverPicker.launch("image/*")
+    }
+
+    private fun resetCover(index: Int) {
+        val path = currentGames.getOrNull(index)?.path ?: return
+        io.execute {
+            try {
+                if (coverFile(path).exists() && !coverFile(path).delete()) {
+                    notifyUi("onAction", "Could not remove this cover.")
+                } else {
+                    notifyUi("onAction", "Game cover reset.")
+                    refreshGames()
+                }
+            } catch (_: Exception) {
+                notifyUi("onAction", "Could not reset cover.")
+            }
+        }
+    }
 
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
     private val gameFolderPicker =
@@ -359,10 +484,17 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     item.put("lastPlayed", recentPrefs.getLong(game.keyLastPlayedTime, 0L))
                     if (position < 32) {
                         try {
-                            val icon = GameMetadata.getIcon(game.path)
-                            if (icon.isNotEmpty() && icon.size < 350000) {
-                                item.put("art", "data:image/png;base64," +
-                                    Base64.encodeToString(icon, Base64.NO_WRAP))
+                            val custom = coverFile(game.path)
+                            if (custom.isFile && custom.length() in 1..1_000_000) {
+                                item.put("art", "data:image/jpeg;base64," +
+                                    Base64.encodeToString(custom.readBytes(), Base64.NO_WRAP))
+                                item.put("customCover", true)
+                            } else {
+                                val icon = GameMetadata.getIcon(game.path)
+                                if (icon.isNotEmpty() && icon.size < 350000) {
+                                    item.put("art", "data:image/png;base64," +
+                                        Base64.encodeToString(icon, Base64.NO_WRAP))
+                                }
                             }
                         } catch (_: Exception) { }
                     }
@@ -423,6 +555,8 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
+        @JavascriptInterface fun pickCover(index: Int) { handler.post { pickCover(index) } }
+        @JavascriptInterface fun resetCover(index: Int) { handler.post { resetCover(index) } }
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
