@@ -17,8 +17,8 @@ assert(kt.includes('Switch 2 NCA4 game loading is not implemented'),
 assert(bridge.includes('SwitchContainerInspector.kt'), 'Build must copy archive inspector');
 assert(home.includes('SwitchContainerInspector.inspect(this, fileUri)'),
        'Archive inspection must be called for saved game files');
-assert(home.includes('EmulationActivity.launch(this, game)'),
-       'Existing working core must receive correctly named SelectedGame extra');
+assert(home.includes('startActivity(game.launchIntent)'),
+       'Existing native engine must receive supported original Switch or loose ExeFS paths');
 
 const nodes = {};
 const calls = [];

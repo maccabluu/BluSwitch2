@@ -7,6 +7,7 @@ on:
       - bluswitch2-ingame-library-persistence
       - bluswitch2-core-repair-isolated
       - bluswitch2-container-loader-research
+      - bluswitch2-settings-hub
     paths:
       - 'bluswitch-ui/**'
       - 'scripts/apply-ui.py'
@@ -15,6 +16,8 @@ on:
       - 'scripts/verify-container-inspector.cjs'
       - 'scripts/brand-ingame.py'
       - 'scripts/fix-gamehelper.py'
+      - 'scripts/brand-settings.py'
+      - 'scripts/verify-settings-gameplay.cjs'
       - '.github/workflows/bluswitch2-native-android.yml'
   workflow_dispatch:
 
@@ -37,6 +40,8 @@ jobs:
         run: node scripts/verify-emulation-library.cjs
       - name: Verify NSP and XCI archive inspector wiring
         run: node scripts/verify-container-inspector.cjs
+      - name: Verify real settings handlers and extracted game launch
+        run: node scripts/verify-settings-gameplay.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -112,6 +117,7 @@ jobs:
         run: |
           python3 scripts/apply-ui.py nx2-source
           python3 scripts/brand-ingame.py nx2-source
+          python3 scripts/brand-settings.py nx2-source
           python3 scripts/fix-gamehelper.py nx2-source
           test -f nx2-source/src/android/app/src/main/res/values/bluswitch_ingame_colors.xml
           test -f nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/ui/main/BluSwitchHomeActivity.kt
