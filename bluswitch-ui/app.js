@@ -51,7 +51,10 @@ function card(g) {
  return '<article class="game-card">'+art+
  '<div class="game-label">'+safe(g.title)+'</div>'+
  '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Open</button>'+
- '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button></article>';
+ '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button>'+
+ '<button class="cover-site" onclick="BluSwitch.findCover('+g.index+')" aria-label="Find cover on GameTDB for '+safe(g.title)+'">GameTDB</button>'+
+ '<button class="cover-choose" onclick="BluSwitch.chooseCover('+g.index+')" aria-label="Choose downloaded cover for '+safe(g.title)+'">Cover</button>'+
+ (g.customCover?'<button class="cover-reset" onclick="BluSwitch.resetCover('+g.index+')" aria-label="Reset custom cover for '+safe(g.title)+'">Reset</button>':'')+'</article>';
 }
 function library(showFavorites) {
  var items = showFavorites ? games.filter(function(g){return !!g.favorite;}) : games;
@@ -129,6 +132,9 @@ window.BluSwitch = {
  refresh:function(){ busy=true;render();nativeCall('requestGames'); },
  play:function(index){nativeCall('launchGame',index);},
  favorite:function(index){nativeCall('favorite',index);},
+ findCover:function(index){nativeCall('openGameTdb',index);},
+ chooseCover:function(index){nativeCall('pickCover',index);},
+ resetCover:function(index){nativeCall('resetCover',index);},
  addFolder:function(){nativeCall('pickGameFolder');},
  addGameFile:function(){nativeCall('pickGameFile');},
  removeGameFile:function(index){
