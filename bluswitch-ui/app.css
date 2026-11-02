@@ -69,3 +69,24 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .container-file-row .file-summary small{font-size:clamp(10px,1.65vh,12px);color:#526883;line-height:1.35}
 .container-structure{font-size:clamp(11px,1.85vh,13px);font-weight:700;color:#0853a9}
 .container-file-row .secondary-btn{flex-shrink:0}
+
+
+/* BluSwitch settings, built as part of the original blue home UI. */
+.blu-settings-wrap{height:100%;width:100%;min-height:0;display:flex;flex-direction:column;gap:clamp(7px,1.4vh,12px);padding:clamp(4px,1vh,10px) 0}
+.blu-settings-head{flex:0 0 auto;display:flex;flex-direction:column;gap:3px}
+.blu-settings-head h1{font-size:clamp(18px,3.5vh,27px);margin:0;color:#082b68}
+.blu-settings-head p{font-size:clamp(11px,1.8vh,13px);margin:0;color:#4f718d}
+.blu-settings-status{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.blu-settings-status span{border:1px solid #b5d5fc;background:#e6f3ffb0;color:#245c9c;font-weight:700;font-size:clamp(10px,1.55vh,12px);border-radius:18px;padding:4px 9px}
+.blu-settings-tiles{min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(6px,1.35vh,12px);overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;align-content:start;padding:2px 3px 10px}
+.blu-settings-tile{display:flex;align-items:center;text-align:left;gap:clamp(9px,1.4vw,15px);width:100%;min-height:clamp(75px,13vh,108px);padding:clamp(9px,1.6vh,17px);border:1px solid #b6d8ff;border-radius:18px;background:linear-gradient(115deg,#fafdffef,#e6f2ffed);box-shadow:0 4px 14px #1c50a30c;color:#11376a;transition:background .13s}
+.blu-settings-tile:hover,.blu-settings-tile:focus-visible{background:#d8ecff;outline-color:#0b85ff}
+.blu-setting-icon{flex:0 0 clamp(34px,6.2vh,48px);height:clamp(34px,6.2vh,48px);display:grid;place-items:center;border-radius:14px;color:#117bfa;background:linear-gradient(145deg,#d2edff,#f4faff);font-size:clamp(20px,3.4vh,28px);font-weight:800}
+.blu-setting-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.blu-setting-text strong{font-size:clamp(12px,2.25vh,17px);line-height:1.2}
+.blu-setting-text small{font-size:clamp(10px,1.73vh,13px);line-height:1.35;color:#536e8a}
+.blu-setting-chevron{font-size:24px;color:#5289be}
+.blu-settings-bottom{display:flex;gap:10px;flex:0 0 auto;flex-wrap:wrap}
+.blu-settings-bottom button{border:1px solid #a9d1fa;border-radius:12px;padding:7px 13px;background:#e2f0ff;color:#0b4b99;font-weight:700;font-size:clamp(10px,1.8vh,13px)}
+@media(max-height:430px){.blu-settings-tile{min-height:65px}.blu-settings-tiles{gap:5px}.blu-setting-text{gap:2px}.blu-settings-bottom button{padding:4px 8px}}
+@media(max-width:620px){.blu-settings-tiles{grid-template-columns:1fr}.blu-settings-tile{min-height:65px}}
