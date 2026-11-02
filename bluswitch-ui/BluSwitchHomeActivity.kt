@@ -310,7 +310,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 }
                 require(file.length() <= 131072L) { "File is too large to preview" }
                 val content = file.readText(Charsets.UTF_8)
-                require(!content.contains('\\u0000')) { "Binary files cannot be previewed" }
+                require(content.none { it.code == 0 }) { "Binary files cannot be previewed" }
                 result.put("name", file.name)
                 result.put("content", content)
             } catch (ex: Exception) {
@@ -590,7 +590,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
             handler.post { browseUserFolder(path) }
         }
         @JavascriptInterface fun previewUserFile(path: String) {
-            handler.post { previewUserFile(path) }
+            handler.post { this@BluSwitchHomeActivity.previewUserFile(path) }
         }
         @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
