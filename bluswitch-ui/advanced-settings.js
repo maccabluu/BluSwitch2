@@ -101,6 +101,7 @@ window.BluAdvanced={
  back:function(){if(active){active='';message='';trigger();return true;}return false;},
  reset:function(){active='';message='';trigger();},
  setValues:function(json){try{data=JSON.parse(json);available=true;message='';trigger();}catch(e){message='Could not read native settings.';trigger();}},
+ error:function(value){message=String(value||'Unable to read settings.');trigger();},
  saved:function(json){try{var r=JSON.parse(json);message=r.message||'';if(r.ok){data[r.key]=r.value;if(r.key==='eden_token'){data.tokenPresent=true;delete data.eden_token;}}trigger();}catch(e){}},
  change:function(key,value){
   var entry=byKey[key];if(!entry||!available)return;
