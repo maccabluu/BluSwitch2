@@ -16,6 +16,8 @@ assert(/NativeConfig\.addGameDir\(GameDir\(uri\.toString\(\), true\)\)\s*NativeC
 assert(/NativeConfig\.setGameDirs\(dirs\.toTypedArray\(\)\)\s*NativeConfig\.saveGlobalConfig\(\)/.test(kt),
   'Deleted game folders must be saved to disk');
 assert(kt.includes('takePersistableUriPermission'), 'Picked game files must retain SAF permission');
+assert(/findExeFSGames\(File\(path\)\)[\s\S]{0,1100}NativeConfig\.addGameDir\(GameDir\(uri\.toString\(\), true\)\)[\s\S]{0,90}NativeConfig\.saveGlobalConfig\(\)/.test(kt),
+  'Launch extracted game must persist valid folder before starting it');
 assert(kt.includes('bluswitch_imported_games'), 'Individual files need durable preferences');
 assert(kt.includes('GameHelper.getGame(uri, true)'), 'Saved individual files must be rescanned on resume');
 assert(kt.includes('fun pickGameFile()'), 'Single game picker bridge missing');
