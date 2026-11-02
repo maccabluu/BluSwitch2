@@ -62,3 +62,10 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .folder-row span{font-size:12px;overflow-wrap:anywhere;min-width:0}
 .screen-panel{width:100%;max-width:1000px;margin:0 auto;padding:10px 2px}
 @media(max-height:500px){.settings-grid{gap:7px}.setting-card{padding:7px}.screen-panel{gap:7px}.screen-panel .notice{padding:7px 10px;margin:0}}
+
+/* Honest package-structure diagnostics for selected NSP/XCI files */
+.container-file-row .file-summary{display:flex;flex-direction:column;gap:3px;min-width:0}
+.container-file-row .file-summary strong{font-size:clamp(11px,2vh,15px);overflow-wrap:anywhere}
+.container-file-row .file-summary small{font-size:clamp(10px,1.65vh,12px);color:#526883;line-height:1.35}
+.container-structure{font-size:clamp(11px,1.85vh,13px);font-weight:700;color:#0853a9}
+.container-file-row .secondary-btn{flex-shrink:0}
