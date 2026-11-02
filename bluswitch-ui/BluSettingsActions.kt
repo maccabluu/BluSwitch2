@@ -32,7 +32,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * input mapping, graphics driver, profile, and firmware management modules.
  * No action starts the upstream MainActivity, or a different installed app.
  */
-class BluSettingsActions(private val activity: AppCompatActivity) {
+class BluSettingsActions(
+    private val activity: AppCompatActivity,
+    private val showBluSwitchFolder: () -> Unit
+) {
     private val jobs = Executors.newSingleThreadExecutor()
     private val verifying = AtomicBoolean(false)
 
@@ -74,7 +77,7 @@ class BluSettingsActions(private val activity: AppCompatActivity) {
                 "verify" -> verifyInstalled()
                 "logs" -> shareDebugReport()
                 "gpu-logs" -> shareGpuLog()
-                "data-folder" -> openUserFolder()
+                "data-folder" -> showBluSwitchFolder()
                 "system-info" -> SystemInfoDialogFragment.newInstance()
                     .show(activity.supportFragmentManager, SystemInfoDialogFragment.TAG)
                 "about" -> about()
@@ -159,30 +162,6 @@ class BluSettingsActions(private val activity: AppCompatActivity) {
             .putExtra(Intent.EXTRA_STREAM, source)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         activity.startActivity(Intent.createChooser(send, "Share BluSwitch 2 GPU log"))
-    }
-
-    private fun openUserFolder() {
-        val root = DocumentsContract.buildRootUri(
-            activity.packageName + ".user", DocumentProvider.ROOT_ID
-        )
-        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
-            Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
-        val choices = listOf(Intent.ACTION_VIEW, "android.provider.action.BROWSE")
-        for (action in choices) {
-            try {
-                activity.startActivity(Intent(action).apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    data = root
-                    addFlags(flags)
-                })
-                return
-            } catch (_: ActivityNotFoundException) {
-                // Try the other Android DocumentsUI action.
-            }
-        }
-        message("Open BluSwitch folder", "Your file manager does not support opening this app data location directly.")
     }
 
     private fun about() {
