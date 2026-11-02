@@ -6,11 +6,13 @@ on:
       - bluswitch2-original-ui
       - bluswitch2-ingame-library-persistence
       - bluswitch2-core-repair-isolated
+      - bluswitch2-container-loader-research
     paths:
       - 'bluswitch-ui/**'
       - 'scripts/apply-ui.py'
       - 'scripts/verify-navigation.cjs'
       - 'scripts/verify-emulation-library.cjs'
+      - 'scripts/verify-container-inspector.cjs'
       - 'scripts/brand-ingame.py'
       - 'scripts/fix-gamehelper.py'
       - '.github/workflows/bluswitch2-native-android.yml'
@@ -33,6 +35,8 @@ jobs:
         run: node scripts/verify-navigation.cjs
       - name: Verify native game launching and import persistence
         run: node scripts/verify-emulation-library.cjs
+      - name: Verify NSP and XCI archive inspector wiring
+        run: node scripts/verify-container-inspector.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

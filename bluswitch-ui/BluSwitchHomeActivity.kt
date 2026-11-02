@@ -196,7 +196,15 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     val item = JSONObject()
                     item.put("name", try { file?.name ?: fileUri.lastPathSegment ?: "Game file" }
                         catch (_: Exception) { "Game file" })
-                    item.put("available", try { file?.exists() == true } catch (_: Exception) { false })
+                    val available = try { file?.exists() == true } catch (_: Exception) { false }
+                    item.put("available", available)
+                    if (available) {
+                        val details = SwitchContainerInspector.inspect(this, fileUri)
+                        item.put("format", details.optString("format", "Unknown"))
+                        item.put("structure", details.optString("structure", "Not checked"))
+                        item.put("contents", details.optString("contents", ""))
+                        item.put("note", details.optString("note", ""))
+                    }
                     imported.put(item)
                 }
                 state.put("files", imported)

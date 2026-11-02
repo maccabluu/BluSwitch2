@@ -19,6 +19,7 @@ assert manifest.exists(), "Upstream Android manifest missing"
 target = app / "src/main/java/org/yuzu/yuzu_emu/ui/main/BluSwitchHomeActivity.kt"
 target.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(repo / "bluswitch-ui/BluSwitchHomeActivity.kt", target)
+shutil.copyfile(repo / "bluswitch-ui/SwitchContainerInspector.kt", target.parent / "SwitchContainerInspector.kt")
 assets = app / "src/main/assets/bluswitch"
 assets.mkdir(parents=True, exist_ok=True)
 for name in ("index.html", "app.css", "app.js"):
