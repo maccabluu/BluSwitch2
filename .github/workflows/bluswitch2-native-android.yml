@@ -4,10 +4,15 @@ on:
     branches:
       - main
       - bluswitch2-original-ui
+      - bluswitch2-ingame-library-persistence
+      - bluswitch2-core-repair-isolated
     paths:
       - 'bluswitch-ui/**'
       - 'scripts/apply-ui.py'
       - 'scripts/verify-navigation.cjs'
+      - 'scripts/verify-emulation-library.cjs'
+      - 'scripts/brand-ingame.py'
+      - 'scripts/fix-gamehelper.py'
       - '.github/workflows/bluswitch2-native-android.yml'
   workflow_dispatch:
 
@@ -26,6 +31,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify BluSwitch navigation never opens Eden
         run: node scripts/verify-navigation.cjs
+      - name: Verify native game launching and import persistence
+        run: node scripts/verify-emulation-library.cjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -100,6 +107,9 @@ jobs:
       - name: Integrate original BluSwitch 2 home UI
         run: |
           python3 scripts/apply-ui.py nx2-source
+          python3 scripts/brand-ingame.py nx2-source
+          python3 scripts/fix-gamehelper.py nx2-source
+          test -f nx2-source/src/android/app/src/main/res/values/bluswitch_ingame_colors.xml
           test -f nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/ui/main/BluSwitchHomeActivity.kt
           test -f nx2-source/src/android/app/src/main/assets/bluswitch/index.html
       - name: Provide SDL3 Android Java bindings before Kotlin compilation

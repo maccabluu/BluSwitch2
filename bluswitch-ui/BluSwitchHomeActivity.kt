@@ -58,6 +58,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                                 notifyUi("onAction", "This game folder is already in your library.")
                             } else {
                                 NativeConfig.addGameDir(GameDir(uri.toString(), true))
+                                NativeConfig.saveGlobalConfig() // Persist across EmulationActivity.reloadGlobalConfig()
                                 notifyUi("onAction", "Game folder added to BluSwitch 2.")
                             }
                             refreshStatus()
@@ -71,6 +72,41 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 }
             }
         }
+
+    // Persist single-file imports separately from upstream scanned game folders.
+    // SharedPreferences and SAF grants survive closing a game and normal APK upgrades.
+    private val singleGamePicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                    val files = getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
+                    val saved = (files.getStringSet("uris", emptySet()) ?: emptySet()).toMutableSet()
+                    saved.add(uri.toString())
+                    files.edit().putStringSet("uris", saved).apply()
+                    notifyUi("onAction", "Game file saved in your BluSwitch 2 library.")
+                } catch (ex: Exception) {
+                    notifyUi("onAction", "Could not save game file access: " + (ex.message ?: "Permission denied"))
+                }
+            }
+        }
+
+    private fun importedGameUris(): List<String> =
+        (getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
+            .getStringSet("uris", emptySet()) ?: emptySet()).sorted()
+
+    private fun removeImportedGame(index: Int) {
+        val files = importedGameUris()
+        if (index !in files.indices) return
+        val old = files[index]
+        val remaining = files.toMutableSet()
+        remaining.remove(old)
+        getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
+            .edit().putStringSet("uris", remaining).apply()
+        notifyUi("onAction", "Game file removed from the BluSwitch library, not from your device.")
+    }
 
     private val prodKeysPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -153,6 +189,17 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 val dirs = JSONArray()
                 NativeConfig.getGameDirs().forEach { dirs.put(it.uriString) }
                 state.put("folders", dirs)
+                val imported = JSONArray()
+                importedGameUris().forEach { path ->
+                    val fileUri = android.net.Uri.parse(path)
+                    val file = DocumentFile.fromSingleUri(this, fileUri)
+                    val item = JSONObject()
+                    item.put("name", try { file?.name ?: fileUri.lastPathSegment ?: "Game file" }
+                        catch (_: Exception) { "Game file" })
+                    item.put("available", try { file?.exists() == true } catch (_: Exception) { false })
+                    imported.put(item)
+                }
+                state.put("files", imported)
                 notifyUi("setStatus", state.toString())
             } catch (ex: Exception) {
                 notifyUi("onAction", "Could not check setup status.")
@@ -167,6 +214,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 if (index !in dirs.indices) return@execute
                 dirs.removeAt(index)
                 NativeConfig.setGameDirs(dirs.toTypedArray())
+                NativeConfig.saveGlobalConfig()
                 notifyUi("onAction", "Game folder removed from library. Files were not deleted.")
                 refreshStatus()
                 refreshGames()
@@ -234,7 +282,20 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
         io.execute {
             try {
-                val found = GameHelper.getGames()
+                val found = GameHelper.getGames().toMutableList()
+                // SAF file imports are not part of GameHelper's folder scanner.
+                // Re-add valid selections from persistent storage after every native scan.
+                importedGameUris().forEach { path ->
+                    try {
+                        if (found.none { it.path == path }) {
+                            val uri = android.net.Uri.parse(path)
+                            if (DocumentFile.fromSingleUri(this, uri)?.exists() == true) {
+                                val selected = GameHelper.getGame(uri, true)
+                                if (selected != null) found.add(selected)
+                            }
+                        }
+                    } catch (_: Exception) { /* Retain saved selection for later retry */ }
+                }
                 currentGames = found
                 val favorites = getSharedPreferences("bluswitch_home", MODE_PRIVATE)
                     .getStringSet("favorites", emptySet()) ?: emptySet()
@@ -283,10 +344,9 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         val run = {
             val prefs = PreferenceManager.getDefaultSharedPreferences(this)
             prefs.edit().putLong(game.keyLastPlayedTime, System.currentTimeMillis()).apply()
-            val intent = Intent(this, EmulationActivity::class.java)
-            intent.putExtra("game", game)
-            intent.putExtra("custom", true)
-            startActivity(intent)
+            // Native core expects EXTRA_SELECTED_GAME ("SelectedGame"), not "game".
+            // Use the upstream launcher so the actual game reaches EmulationFragment.
+            EmulationActivity.launch(this, game)
         }
         if (NativeLibrary.gameRequiresFirmware(game.programId) &&
             !NativeLibrary.isFirmwareAvailable()) {
@@ -311,6 +371,12 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
+        @JavascriptInterface fun pickGameFile() {
+            handler.post { singleGamePicker.launch(arrayOf("*/*")) }
+        }
+        @JavascriptInterface fun removeGameFile(index: Int) {
+            handler.post { removeImportedGame(index) }
+        }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
         @JavascriptInterface fun requestStorageAccess() {
