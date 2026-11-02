@@ -4,7 +4,15 @@ on:
     branches:
       - main
       - bluswitch2-original-ui
+    paths:
+      - 'bluswitch-ui/**'
+      - 'scripts/apply-ui.py'
+      - '.github/workflows/bluswitch2-native-android.yml'
   workflow_dispatch:
+
+concurrency:
+  group: bluswitch-native-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
