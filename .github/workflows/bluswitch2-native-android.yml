@@ -86,8 +86,25 @@ jobs:
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
       - name: Fetch GPL-licensed Switch 2 Android engine
         run: |
-          git clone --recursive --depth 1 --shallow-submodules --branch nx2-android-v0.3.1 https://git.eden-emu.dev/moceure/eden-nx2-android.git nx2-source
-          test -f nx2-source/src/android/app/build.gradle.kts
+          set -euo pipefail
+          # The upstream Git server sometimes resets long clone connections.
+          # Retry a fresh shallow clone rather than failing the entire APK build.
+          for attempt in 1 2 3 4 5; do
+            rm -rf nx2-source
+            if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch nx2-android-v0.3.1 \
+              https://git.eden-emu.dev/moceure/eden-nx2-android.git nx2-source; then
+              if (cd nx2-source && git -c http.version=HTTP/1.1 submodule update --init --recursive --depth 1); then
+                test -f nx2-source/src/android/app/build.gradle.kts
+                break
+              fi
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo "::error::Failed to fetch upstream emulator after 5 attempts"
+              exit 1
+            fi
+            echo "::warning::Upstream clone interrupted; retrying attempt $((attempt + 1))"
+            sleep $((attempt * 10))
+          done
       - name: Apply standalone BluSwitch 2 branding
         run: |
           python3 - <<'PY'
