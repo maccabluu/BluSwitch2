@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - bluswitch2-original-ui
+      - bluswitch2-blups2-library-tools
     paths:
       - 'bluswitch-ui/**'
       - 'scripts/apply-ui.py'
