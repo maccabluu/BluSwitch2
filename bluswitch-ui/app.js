@@ -55,7 +55,10 @@ function card(g) {
  return '<article class="game-card">'+art+
  '<div class="game-label">'+safe(g.title)+'</div>'+
  '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Open</button>'+
- '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button></article>';
+ '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button>'+
+ '<button class="cover-edit" onclick="BluSwitch.chooseCover('+g.index+')" aria-label="Choose cover for '+safe(g.title)+'">Cover</button>'+
+ (g.customCover?'<button class="cover-reset" onclick="BluSwitch.clearCover('+g.index+')" aria-label="Reset cover for '+safe(g.title)+'">Reset</button>':'')+
+ '</article>';
 }
 function library(showFavorites) {
  var heading = showFavorites ? 'Your favourites' : libraryFilter === 'recent' ? 'Recently played' : 'Your game library';
@@ -175,6 +178,8 @@ window.BluSwitch = {
  refresh:function(){ busy=true;render();nativeCall('requestGames'); },
  play:function(index){nativeCall('launchGame',index);},
  favorite:function(index){nativeCall('favorite',index);},
+ chooseCover:function(index){nativeCall('pickCover',index);},
+ clearCover:function(index){nativeCall('resetCover',index);},
  addFolder:function(){nativeCall('pickGameFolder');},
  importKeys:function(){nativeCall('pickProdKeys');},
  enableStorage:function(){nativeCall('requestStorageAccess');},
