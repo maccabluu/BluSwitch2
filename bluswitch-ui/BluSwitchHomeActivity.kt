@@ -4,6 +4,13 @@ package org.yuzu.yuzu_emu.ui.main
 
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.Build
+import android.os.PowerManager
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.pm.ActivityInfo
@@ -42,6 +49,103 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private val io = Executors.newSingleThreadExecutor()
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
+    @Volatile private var controllerTestActive = false
+    private val deviceTicker = object : Runnable {
+        override fun run() {
+            if (!closing) {
+                publishDeviceStatus()
+                handler.postDelayed(this, 5000)
+            }
+        }
+    }
+
+    // Battery readings come from Android, not guessed CPU or GPU temperatures.
+    private fun publishDeviceStatus() {
+        try {
+            val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            val temperature = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+            val batteryState = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val charging = batteryState == BatteryManager.BATTERY_STATUS_CHARGING ||
+                batteryState == BatteryManager.BATTERY_STATUS_FULL
+            val data = JSONObject()
+            if (level >= 0 && scale > 0) {
+                data.put("battery", (level * 100.0 / scale).toInt().coerceIn(0, 100))
+            } else data.put("battery", JSONObject.NULL)
+            if (temperature in 0..1250) data.put("batteryTemp", temperature / 10.0)
+            else data.put("batteryTemp", JSONObject.NULL)
+            data.put("charging", charging)
+            val thermal = if (Build.VERSION.SDK_INT >= 29) {
+                val manager = getSystemService(POWER_SERVICE) as? PowerManager
+                when (manager?.currentThermalStatus) {
+                    PowerManager.THERMAL_STATUS_NONE -> "Normal"
+                    PowerManager.THERMAL_STATUS_LIGHT -> "Light"
+                    PowerManager.THERMAL_STATUS_MODERATE -> "Moderate"
+                    PowerManager.THERMAL_STATUS_SEVERE -> "Severe"
+                    PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
+                    PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                    PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown"
+                    else -> "Unknown"
+                }
+            } else "Not available"
+            data.put("thermal", thermal)
+            notifyUi("setDevice", data.toString())
+        } catch (_: Exception) {
+            val data = JSONObject()
+            data.put("battery", JSONObject.NULL)
+            data.put("batteryTemp", JSONObject.NULL)
+            data.put("charging", false)
+            data.put("thermal", "Not available")
+            notifyUi("setDevice", data.toString())
+        }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (controllerTestActive && event.keyCode != KeyEvent.KEYCODE_BACK &&
+            event.keyCode != KeyEvent.KEYCODE_HOME &&
+            event.keyCode != KeyEvent.KEYCODE_VOLUME_UP &&
+            event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN &&
+            (event.isFromSource(InputDevice.SOURCE_GAMEPAD) ||
+             event.isFromSource(InputDevice.SOURCE_JOYSTICK) ||
+             event.isFromSource(InputDevice.SOURCE_DPAD))
+        ) {
+            if (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) {
+                val data = JSONObject()
+                data.put("type", "key")
+                data.put("button", KeyEvent.keyCodeToString(event.keyCode).removePrefix("KEYCODE_"))
+                data.put("pressed", event.action == KeyEvent.ACTION_DOWN)
+                data.put("device", event.device?.name ?: "Android controller")
+                notifyUi("controllerInput", data.toString())
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (controllerTestActive && event.isFromSource(InputDevice.SOURCE_JOYSTICK) &&
+            event.actionMasked == MotionEvent.ACTION_MOVE
+        ) {
+            fun axis(code: Int): Double {
+                val value = event.getAxisValue(code).toDouble()
+                return if (kotlin.math.abs(value) < 0.03) 0.0 else value
+            }
+            val data = JSONObject()
+            data.put("type", "axis")
+            data.put("device", event.device?.name ?: "Android controller")
+            data.put("lx", axis(MotionEvent.AXIS_X))
+            data.put("ly", axis(MotionEvent.AXIS_Y))
+            data.put("rx", axis(MotionEvent.AXIS_Z))
+            data.put("ry", axis(MotionEvent.AXIS_RZ))
+            data.put("lt", maxOf(axis(MotionEvent.AXIS_LTRIGGER), axis(MotionEvent.AXIS_BRAKE)))
+            data.put("rt", maxOf(axis(MotionEvent.AXIS_RTRIGGER), axis(MotionEvent.AXIS_GAS)))
+            notifyUi("controllerInput", data.toString())
+            return true
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
 
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
     private val gameFolderPicker =
@@ -214,6 +318,13 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         super.onResume()
         handler.postDelayed({ refreshGames() }, 400)
         handler.postDelayed({ refreshStatus() }, 500)
+        handler.removeCallbacks(deviceTicker)
+        handler.post(deviceTicker)
+    }
+
+    override fun onPause() {
+        handler.removeCallbacks(deviceTicker)
+        super.onPause()
     }
 
     private fun notifyUi(method: String, payload: String) {
@@ -315,6 +426,10 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun pickGameFolder() { handler.post { gameFolderPicker.launch(null) } }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
+        @JavascriptInterface fun requestDeviceStatus() { handler.post { publishDeviceStatus() } }
+        @JavascriptInterface fun setControllerTestActive(active: Boolean) {
+            handler.post { controllerTestActive = active }
+        }
         @JavascriptInterface fun requestStorageAccess() {
             handler.post {
                 if (android.os.Build.VERSION.SDK_INT >= 30 &&
@@ -348,6 +463,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         closing = true
+        handler.removeCallbacks(deviceTicker)
         io.shutdownNow()
         browser.removeJavascriptInterface("BluNative")
         browser.destroy()
