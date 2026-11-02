@@ -1,6 +1,7 @@
 (function () {
 'use strict';
 var games = [], current = 'home', error = '', busy = true;
+var libraryView = 'covers', libraryFilter = 'all';
 var nav = [
   ['home','Library','gamepad','#9838ee'],
   ['collections','Collections','layers','#ff8b00'],
@@ -54,19 +55,32 @@ function card(g) {
  '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button></article>';
 }
 function library(showFavorites) {
- var items = showFavorites ? games.filter(function(g){return !!g.favorite;}) : games;
- if(!items.length) {
-  var msg = error ? safe(error) : busy ? 'Scanning your game folders...' : showFavorites ?
-    'Choose the star on a game cover to add it to Favourites.' :
-    'No games found yet. Add your own game folder to start.';
-  return '<div class="empty-home"><h2>'+(showFavorites?'Your favourites':'Your game library')+'</h2><p>'+msg+'</p><div class="action-row" style="justify-content:center">'+
-   '<button class="primary-btn" onclick="BluSwitch.addFolder()">Add game folder</button>'+
-   '<button class="secondary-btn" onclick="BluSwitch.refresh()">Refresh library</button></div></div>';
+ var heading = showFavorites ? 'Your favourites' : libraryFilter === 'recent' ? 'Recently played' : 'Your game library';
+ var items = showFavorites ? games.filter(function(g) {return !!g.favorite;}) : games.slice();
+ if(!showFavorites && libraryFilter === 'recent') {
+   items=items.filter(function(g){return Number(g.lastPlayed||0)>0;})
+     .sort(function(a,b){return Number(b.lastPlayed||0)-Number(a.lastPlayed||0);});
  }
- return '<section class="carousel-panel"><div class="carousel-meta"><span>'+
- (showFavorites?'Your favourites':'Your game library')+' · '+items.length+' '+(items.length===1?'game':'games')+
- '</span><div><button onclick="BluSwitch.refresh()">Refresh</button><button onclick="BluSwitch.addFolder()">+ Add game folder</button></div></div>'+
- '<div class="game-strip" aria-label="Your games">'+items.map(card).join('')+'</div></section>';
+ if(!items.length) {
+   var msg = error ? safe(error) : busy ? 'Scanning your game folders...' : showFavorites ?
+     'Choose the star on a game cover to add it to Favourites.' :
+     libraryFilter === 'recent' && games.length ? 'Games appear here after you play them.' :
+     'No games found yet. Add your own game folder to start.';
+   return '<div class="empty-home"><h2>'+heading+'</h2><p>'+msg+'</p><div class="action-row" style="justify-content:center">'+
+     (!showFavorites && libraryFilter==='recent' ? actionButton('All games','allGames',true) : '')+
+     actionButton('Add game folder','addFolder')+actionButton('Refresh library','refresh',true)+'</div></div>';
+ }
+ var count = items.length+' '+(items.length===1?'game':'games');
+ var tabs = showFavorites ? '' :
+   '<button class="'+(libraryFilter==='all'?'selected':'')+'" onclick="BluSwitch.setFilter(\'all\')">All games</button>'+
+   '<button class="'+(libraryFilter==='recent'?'selected':'')+'" onclick="BluSwitch.setFilter(\'recent\')">Recent</button>';
+ var views = '<button class="'+(libraryView==='covers'?'selected':'')+'" onclick="BluSwitch.setView(\'covers\')">Covers</button>'+
+   '<button class="'+(libraryView==='grid'?'selected':'')+'" onclick="BluSwitch.setView(\'grid\')">Grid</button>';
+ return '<section class="carousel-panel"><div class="carousel-meta"><span>'+heading+' · '+count+'</span>'+
+   '<div class="library-tools">'+tabs+views+
+   '<button onclick="BluSwitch.refresh()">Refresh</button>'+
+   '<button onclick="BluSwitch.addFolder()">+ Add game folder</button></div></div>'+
+   '<div class="game-strip '+(libraryView==='grid'?'game-grid':'')+'" aria-label="Your games">'+items.map(card).join('')+'</div></section>';
 }
 var status = {keys:false, firmware:false, folders:[], ready:false};
 var notice = '';
@@ -111,6 +125,9 @@ function render() {
  else view.innerHTML=library(false);
 }
 window.BluSwitch = {
+ setFilter:function(mode){if(mode==='all'||mode==='recent'){libraryFilter=mode;render();}},
+ allGames:function(){libraryFilter='all';render();},
+ setView:function(mode){if(mode==='covers'||mode==='grid'){libraryView=mode;render();}},
  setGames:function(json) {
   try { games=JSON.parse(json); busy=false; error=''; render(); }
   catch(e) {this.showError('Could not load your game list.');}
