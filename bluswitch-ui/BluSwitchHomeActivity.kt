@@ -16,6 +16,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.preference.PreferenceManager
@@ -195,6 +196,14 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         browser.addJavascriptInterface(Bridge(), "BluNative")
         setContentView(browser)
         browser.loadUrl("file:///android_asset/bluswitch/index.html")
+        // Always return to the BluSwitch 2 screen, never the upstream Eden home.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (!closing) browser.evaluateJavascript(
+                    "window.BluSwitch && window.BluSwitch.back();", null
+                )
+            }
+        })
 
         // BluSwitch 2 now owns first-run setup instead of opening the Eden interface.
         PreferenceManager.getDefaultSharedPreferences(this)
