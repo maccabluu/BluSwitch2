@@ -48,6 +48,7 @@ class BluSettingsActions(private val activity: AppCompatActivity) {
     fun open(id: String) {
         try {
             when (id) {
+                "readiness" -> subscreen(SettingsSubscreen.SWITCH2_READINESS)
                 "advanced" -> settings(Settings.MenuTag.SECTION_ROOT)
                 "app" -> settings(Settings.MenuTag.SECTION_APP_SETTINGS)
                 "controls" -> settings(Settings.MenuTag.SECTION_INPUT)
