@@ -51,7 +51,10 @@ function card(g) {
  return '<article class="game-card">'+art+
  '<div class="game-label">'+safe(g.title)+'</div>'+
  '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Open</button>'+
- '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button></article>';
+ '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button>'+
+ '<button class="gametdb-cover-button" onclick="BluSwitch.findGameTdbCover('+g.index+')" aria-label="Find GameTDB cover for '+safe(g.title)+'">GameTDB Cover</button>'+
+ (g.gameTdbCover?'<button class="gametdb-reset-button" onclick="BluSwitch.resetGameTdbCover('+g.index+')" aria-label="Reset GameTDB cover for '+safe(g.title)+'">Reset cover</button>':'')+
+ '</article>';
 }
 function library(showFavorites) {
  var items = showFavorites ? games.filter(function(g){return !!g.favorite;}) : games;
@@ -127,6 +130,8 @@ window.BluSwitch = {
  refresh:function(){ busy=true;render();nativeCall('requestGames'); },
  play:function(index){nativeCall('launchGame',index);},
  favorite:function(index){nativeCall('favorite',index);},
+ findGameTdbCover:function(index){nativeCall('findGameTdbCover',index);},
+ resetGameTdbCover:function(index){nativeCall('resetGameTdbCover',index);},
  addFolder:function(){nativeCall('pickGameFolder');},
  launchExeFSFolder:function(){nativeCall('launchExeFSFolder');},
  addGameFile:function(){nativeCall('pickGameFile');},
