@@ -26,7 +26,7 @@ object SwitchContainerInspector {
         result.put("format", "Unknown")
         result.put("structure", "Not checked")
         result.put("contents", "")
-        result.put("playable", false)
+        result.put("bootSupport", "Not established by header inspection")
         result.put("note", "Container compatibility is not verified.")
         try {
             val filename = context.contentResolver.query(
