@@ -81,8 +81,10 @@ function renderFiles() {
  var list = folders.length ? '<div class="folder-list">'+folders.map(function(folder,i){
    return '<div class="folder-row"><span>'+safe(folder)+'</span><button class="secondary-btn" onclick="BluSwitch.removeFolder('+i+')">Remove</button></div>';
  }).join('')+'</div>' : '<p class="notice">No game folders added yet.</p>';
+ var storage = status.ready ? (status.allFiles ? 'Switch 2 folder access: enabled.' : 'Switch 2 loose ExeFS folders might require Android All files access.') : '';
  return '<section class="screen-panel"><h1>Game files</h1><p class="notice">Add a folder containing your own game dumps. BluSwitch 2 will scan for supported files.</p>'+list+
- '<div class="action-row">'+actionButton('Add game folder','addFolder')+actionButton('Refresh library','refresh',true)+'</div></section>';
+ '<div class="action-row">'+actionButton('Add game folder','addFolder')+actionButton('Refresh library','refresh',true)+
+ (!status.allFiles ? actionButton('Enable Switch 2 folder access','enableStorage',true) : '')+'</div><p class="notice">'+safe(storage)+'</p></section>';
 }
 function renderSettings() {
  var keyText = status.ready ? (status.keys ? 'Installed' : 'Not installed') : 'Checking';
@@ -119,6 +121,7 @@ window.BluSwitch = {
  favorite:function(index){nativeCall('favorite',index);},
  addFolder:function(){nativeCall('pickGameFolder');},
  importKeys:function(){nativeCall('pickProdKeys');},
+ enableStorage:function(){nativeCall('requestStorageAccess');},
  checkStatus:function(){nativeCall('requestStatus');},
  removeFolder:function(index){
    if(confirm('Remove this game folder from BluSwitch 2? Your actual game files will not be deleted.')) nativeCall('removeGameFolder',index);
