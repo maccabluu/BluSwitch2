@@ -166,7 +166,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     if (closing) return@runOnUiThread
                     when (games.size) {
                         0 -> AlertDialog.Builder(this).setTitle("No launchable game")
-                            .setMessage("No exefs/main file was found in this folder. The native Switch 2 loader needs an extracted game folder containing exefs and romfs.")
+                            .setMessage("No exefs/main file was found. Like in Eden, open your extracted game's base folder or numbered updates folder until you see exefs and romfs together, then tap Use this folder. Do not select the ZIP archive.")
                             .setPositiveButton("OK", null).show()
                         1 -> startNativeGame(games.first())
                         else -> AlertDialog.Builder(this)
