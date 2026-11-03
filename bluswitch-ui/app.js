@@ -61,13 +61,15 @@ function library(showFavorites) {
     'Choose the star on a game cover to add it to Favourites.' :
     'No games found yet. Add your own game folder to start.';
   return '<div class="empty-home"><h2>'+(showFavorites?'Your favourites':'Your game library')+'</h2><p>'+msg+'</p><div class="action-row" style="justify-content:center">'+
-   '<button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Launch extracted Switch 2 game</button>'+'<button class="primary-btn" onclick="BluSwitch.addFolder()">Add game folder</button>'+
+   '<button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Folder · Launch Switch 2 game</button>'+'<button class="primary-btn" onclick="BluSwitch.addFolder()">Add game folder</button>'+
    '<button class="secondary-btn" onclick="BluSwitch.addGameFile()">Add game file</button>'+
    '<button class="secondary-btn" onclick="BluSwitch.refresh()">Refresh library</button></div></div>';
  }
  return '<section class="carousel-panel"><div class="carousel-meta"><span>'+
  (showFavorites?'Your favourites':'Your game library')+' · '+items.length+' '+(items.length===1?'game':'games')+
  '</span><div><button onclick="BluSwitch.refresh()">Refresh</button><button onclick="BluSwitch.addFolder()">+ Add game folder</button></div></div>'+
+ '<div class="bluswitch-quicklaunch"><button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Folder · Launch Switch 2 game</button>'+
+ '<span>Like Eden: choose your extracted game version folder containing <strong>exefs</strong> and <strong>romfs</strong>, then tap <strong>Use this folder</strong>. Do not choose the ZIP.</span></div>'+
  '<div class="game-strip" aria-label="Your games">'+items.map(card).join('')+'</div></section>';
 }
 var status = {keys:false, firmware:false, folders:[], files:[], ready:false};
@@ -94,10 +96,11 @@ function renderFiles() {
  }).join('')+'</div>' : '<p class="notice">No individual game files selected.</p>';
  var storage=status.ready ? (status.allFiles?'Loose ExeFS folder access enabled.':'Loose ExeFS folders may need Android All files access.') : '';
  return '<section class="screen-panel"><h1>Game files</h1>'+
+  '<p class="notice">For a Switch 2 game, open the extracted game folder, then base or updates / numbered version, until you see exefs and romfs. Tap Use this folder. Do not choose a ZIP archive.</p>'+
   '<p class="notice">Your selected folders and game files are kept when you close a game. Only files recognised by the emulator appear in Library.</p>'+
   '<h2>Game folders</h2>'+folderList+
   '<h2>Individual game files</h2>'+fileList+
-  '<div class="action-row">'+actionButton('Launch extracted Switch 2 game','launchExeFSFolder')+actionButton('Add game folder','addFolder')+
+  '<div class="action-row">'+actionButton('Folder · Launch Switch 2 game','launchExeFSFolder')+actionButton('Add game folder','addFolder')+
   actionButton('Add game file','addGameFile')+actionButton('Refresh library','refresh',true)+
   (!status.allFiles?actionButton('Enable ExeFS access','enableStorage',true):'')+
   '</div><p class="notice">'+safe(storage)+'</p></section>';
