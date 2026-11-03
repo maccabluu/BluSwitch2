@@ -9,7 +9,8 @@ const js = fs.readFileSync('bluswitch-ui/app.js','utf8');
 const branding = fs.readFileSync('scripts/brand-ingame.py','utf8');
 const workflow = fs.readFileSync('.github/workflows/bluswitch2-native-android.yml','utf8');
 
-assert(kt.includes('val launchIntent = game.launchIntent.apply'), 'Use same native engine Intent as Eden for both file and ExeFS paths');
+assert(kt.includes('val launchIntent = Intent(this, EmulationActivity::class.java).apply'), 'Launch native EmulationActivity directly with Eden navigation arguments');
+assert(!kt.includes('val launchIntent = game.launchIntent.apply'), 'Do not use ACTION_VIEW shortcut launch for games in BluSwitch library');
 assert(kt.includes('putExtra("game", game)'), 'Pass the selected Game directly, matching Eden navigation arguments');
 assert(kt.includes('putExtra("custom", true)'), 'Preserve Eden custom per-game settings on launch');
 assert(kt.includes('startActivity(launchIntent)'), 'Launch native emulation inside the current APK');
