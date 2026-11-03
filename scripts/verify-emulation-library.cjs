@@ -61,6 +61,10 @@ assert(html.includes('Add game file'),'There must be a separate game file picker
 window.BluSwitch.setGames(JSON.stringify([{index:0,title:'Pokopia',favorite:false}]));
 window.BluSwitch.open('home');
 assert(nodes['main-view'].innerHTML.includes('Check boot'),'Missing visible boot check for game');
+assert(nodes['main-view'].innerHTML.includes('Folder · Launch Switch 2 game'),'Extracted game folder launcher must stay visible when library has games');
+assert(nodes['main-view'].innerHTML.includes('Use this folder'),'Show Eden-style extracted game folder instructions');
+window.BluSwitch.launchExeFSFolder();
+assert(events.some(([name])=>name==='launchExeFSFolder'),'Extracted game folder button must call native folder picker');
 window.BluSwitch.diagnose(0);
 assert(events.some(([name,index])=>name==='diagnoseGame'&&index===0),'Boot check must call native diagnostic');
 window.BluSwitch.open('files');
