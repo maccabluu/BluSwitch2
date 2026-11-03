@@ -185,8 +185,16 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private fun startNativeGame(game: Game) {
         val settings = PreferenceManager.getDefaultSharedPreferences(this)
         settings.edit().putLong(game.keyLastPlayedTime, System.currentTimeMillis()).apply()
-        // The original upstream Game.launchIntent handles loose ExeFS paths and ordinary files.
-        startActivity(game.launchIntent)
+        // Eden's GamesFragment passes the selected Game and "custom" flag to
+        // EmulationActivity. Passing both avoids relying on a second metadata
+        // scan of a Switch 2 game file to reconstruct the selected game.
+        // Preserve Game.launchIntent's content URI or loose ExeFS path so the
+        // native engine still restores mounted content and starts in this APK.
+        val launchIntent = game.launchIntent.apply {
+            putExtra("game", game)
+            putExtra("custom", true)
+        }
+        startActivity(launchIntent)
     }
 
     private val prodKeysPicker =
