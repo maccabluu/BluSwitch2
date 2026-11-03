@@ -40,7 +40,7 @@ window.BluSettings.select('drivers');
 assert(invocations.some(([k,v])=>k==='openSetting'&&v==='drivers'), 'Native GPU driver manager not invoked');
 window.BluSettings.select('folders');
 assert(nodes['main-view'].innerHTML.includes('Game files'), 'Game folders did not open Files');
-assert(nodes['main-view'].innerHTML.includes('Launch extracted Switch 2 game'), 'Loose game launch missing');
+assert(nodes['main-view'].innerHTML.includes('Folder · Launch Switch 2 game'), 'Loose game launch missing');
 window.BluSwitch.launchExeFSFolder();
 assert(invocations.some(([k])=>k==='launchExeFSFolder'), 'ExeFS launcher not connected to native picker');
 console.log('PASS settings native actions, UI routes, real ExeFS launcher and no Eden home redirects');
