@@ -91,7 +91,7 @@ jobs:
           # Retry a fresh shallow clone rather than failing the entire APK build.
           for attempt in 1 2 3 4 5; do
             rm -rf nx2-source
-            if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch nx2-android-v0.3.1 \
+            if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch nx2-android-v0.3.2 \
               https://git.eden-emu.dev/moceure/eden-nx2-android.git nx2-source; then
               if (cd nx2-source && git -c http.version=HTTP/1.1 submodule update --init --recursive --depth 1); then
                 test -f nx2-source/src/android/app/build.gradle.kts
