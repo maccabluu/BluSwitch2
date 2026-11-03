@@ -19,7 +19,7 @@ assert(apply.includes('settings-hub.js'),'Settings UI missing from APK assets');
 assert(home.includes('fun openSetting(id: String)'),'Settings Javascript bridge missing');
 assert(home.includes('fun launchExeFSFolder()'),'Native loose game picker missing');
 assert(home.includes('GameHelper.findExeFSGames(File(path))'),'Native loose game search not connected');
-assert(home.includes('startActivity(game.launchIntent)'),'Must launch with native Game.launchIntent');
+assert(home.includes('val launchIntent = game.launchIntent.apply') && home.includes('startActivity(launchIntent)'),'Must launch the native core using Eden game Intent and explicit Game arguments');
 assert(!home.includes('MainActivity::class.java'),'Old upstream Eden home redirect found');
 assert(build.includes('brand-settings.py'),'Native settings branding not present in APK workflow');
 
