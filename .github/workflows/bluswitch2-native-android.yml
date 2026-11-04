@@ -105,6 +105,18 @@ jobs:
             echo "::warning::Upstream clone interrupted; retrying attempt $((attempt + 1))"
             sleep $((attempt * 10))
           done
+      - name: Verify Eden native game launch contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          upstream = Path("nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/activities/EmulationActivity.kt").read_text()
+          assert 'const val EXTRA_SELECTED_GAME = "SelectedGame"' in upstream, "Eden selected-game extra changed"
+          assert 'fun launch(activity: AppCompatActivity, game: Game)' in upstream, "Eden game launch helper changed"
+          assert 'launcher.putExtra(EXTRA_SELECTED_GAME, game)' in upstream, "Eden launch helper no longer passes the selected game"
+          custom = Path("bluswitch-ui/BluSwitchHomeActivity.kt").read_text()
+          assert "EmulationActivity.launch(this, game)" in custom, "BluSwitch must use Eden's official launch helper"
+          print("Native Eden game-launch contract verified before Android build")
+          PY
       - name: Apply standalone BluSwitch 2 branding
         run: |
           python3 - <<'PY'
