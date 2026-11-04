@@ -9,11 +9,11 @@ const js = fs.readFileSync('bluswitch-ui/app.js','utf8');
 const branding = fs.readFileSync('scripts/brand-ingame.py','utf8');
 const workflow = fs.readFileSync('.github/workflows/bluswitch2-native-android.yml','utf8');
 
-assert(kt.includes('val launchIntent = Intent(this, EmulationActivity::class.java).apply'), 'Launch native EmulationActivity directly with Eden navigation arguments');
+assert(kt.includes('EmulationActivity.launch(this, game)'), 'Use Eden native game-launch entrypoint with the SelectedGame argument');
+assert(!kt.includes('putExtra("game", game)'), 'Do not pass an unsupported lowercase game argument');
 assert(!kt.includes('val launchIntent = game.launchIntent.apply'), 'Do not use ACTION_VIEW shortcut launch for games in BluSwitch library');
-assert(kt.includes('putExtra("game", game)'), 'Pass the selected Game directly, matching Eden navigation arguments');
-assert(kt.includes('putExtra("custom", true)'), 'Preserve Eden custom per-game settings on launch');
-assert(kt.includes('startActivity(launchIntent)'), 'Launch native emulation inside the current APK');
+assert(!kt.includes('val launchIntent = Intent(this, EmulationActivity::class.java).apply'), 'Do not duplicate Eden launch Intent construction');
+assert(kt.includes('private fun startNativeGame(game: Game)'), 'Game library and extracted-folder picker must share Eden launcher');
 assert(/NativeConfig\.addGameDir\(GameDir\(uri\.toString\(\), true\)\)\s*NativeConfig\.saveGlobalConfig\(\)/.test(kt),
   'Imported game folders must be persisted before native config reload');
 assert(/NativeConfig\.setGameDirs\(dirs\.toTypedArray\(\)\)\s*NativeConfig\.saveGlobalConfig\(\)/.test(kt),
