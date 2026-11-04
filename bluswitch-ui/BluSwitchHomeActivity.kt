@@ -185,17 +185,10 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private fun startNativeGame(game: Game) {
         val settings = PreferenceManager.getDefaultSharedPreferences(this)
         settings.edit().putLong(game.keyLastPlayedTime, System.currentTimeMillis()).apply()
-        // Match Eden's GameAdapter -> home-navigation launch rather than
-        // Game.launchIntent, which is intended for external shortcuts.
-        // ACTION_VIEW/data triggers EmulationFragment's alternative intent
-        // loader and a second metadata scan. This path instead supplies the
-        // selected Game through the navigation "game" argument exactly as
-        // Eden's own library does, including extracted ExeFS Game.path values.
-        val launchIntent = Intent(this, EmulationActivity::class.java).apply {
-            putExtra("game", game)
-            putExtra("custom", true)
-        }
-        startActivity(launchIntent)
+        // Launch using the upstream Eden Android entrypoint, not a duplicated
+        // Intent contract. Eden supplies EXTRA_SELECTED_GAME ("SelectedGame")
+        // and keeps the original native game renderer, controller and menu.
+        EmulationActivity.launch(this, game)
     }
 
     private val prodKeysPicker =
