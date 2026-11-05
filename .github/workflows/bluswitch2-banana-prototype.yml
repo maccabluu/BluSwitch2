@@ -1,0 +1,75 @@
+name: BluSwitch2 Banana Native engine proof
+on:
+  push:
+    branches: [bluswitch2-clean-rebuild]
+    paths:
+      - '.github/workflows/bluswitch2-banana-prototype.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bluswitch2-banana-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Android native build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zsh ninja-build cmake curl unzip perl git clang pkg-config
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK/NDK
+        run: |
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Fetch pinned Banana Native v0.1.5 source
+        run: |
+          git -c http.version=HTTP/1.1 clone --depth 1 --branch v0.1.5 https://github.com/moceure/BananaNative.git banana-source
+          test "$(git -C banana-source rev-parse HEAD)" = "243bae31a836503d216bb0003e90b194d4366bad"
+          test -f banana-source/dm/games/0400A3A01EE4C000/game.tsv
+          test -f banana-source/android/ondevice/build.sh
+          test -f banana-source/android/NOTICE.md
+          echo "Pinned Pokopia native engine sources verified"
+      - name: Build genuine on-device preparation engine
+        run: |
+          cd banana-source
+          zsh android/ondevice/build.sh "$RUNNER_TEMP/bluswitch-native-packer"
+          test -f "$RUNNER_TEMP/bluswitch-native-packer/stage/lib/libnxpack.so"
+          test -f "$RUNNER_TEMP/bluswitch-native-packer/stage/lib/libdmsh_xlate.so"
+          test -f "$RUNNER_TEMP/bluswitch-native-packer/stage/lib/libSPIRV-Tools-shared.so"
+      - name: Build experimental BluSwitch2 native test APK
+        run: |
+          cd banana-source/android/app
+          chmod +x gradlew
+          ./gradlew --no-daemon \
+            -PnxGames=0400A3A01EE4C000 \
+            -PnxApp=bluswitch \
+            -PnxLabel="BluSwitch2 Native Preview" \
+            -PnxVersion="0.1.5-bluswitch-test" \
+            -PnxPackStage="$RUNNER_TEMP/bluswitch-native-packer/stage" \
+            apk
+          test -s out/nxnative-android-bluswitch.apk
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          cp out/nxnative-android-bluswitch.apk "$GITHUB_WORKSPACE/output/BluSwitch2-Native-Preview-Android.apk"
+          (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2-Native-Preview-Android.apk > SHA256SUMS.txt)
+      - name: Upload native prototype if build succeeds
+        uses: actions/upload-artifact@v4
+        with:
+          name: BluSwitch2-Banana-Native-Preview
+          path: output/
+          if-no-files-found: error
+          retention-days: 14
