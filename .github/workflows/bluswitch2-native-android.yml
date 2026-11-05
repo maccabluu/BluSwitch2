@@ -18,7 +18,6 @@ on:
       - 'scripts/verify-container-inspector.cjs'
       - 'scripts/brand-ingame.py'
       - 'scripts/fix-gamehelper.py'
-      - 'scripts/port-eglantine-nup.py'
       - 'scripts/fix-eden-launch-args.py'
       - 'scripts/brand-settings.py'
       - 'scripts/verify-settings-gameplay.cjs'
@@ -131,22 +130,6 @@ jobs:
           assert 'launcher.putExtra("game", game)' in src
           assert 'val gameToUse = args.game ?: intentGame' in frag
           print("First-boot SelectedGame and game navigation arguments verified")
-          PY
-      - name: Port Eglantine NUP update executable fix to Android
-        run: |
-          set -euo pipefail
-          python3 scripts/port-eglantine-nup.py nx2-source
-          python3 - <<'PY'
-          from pathlib import Path
-          root = Path("nx2-source/src/core")
-          core = (root / "core.cpp").read_text()
-          nup = (root / "loader/nup.cpp").read_text()
-          loader = (root / "loader/loader.cpp").read_text()
-          assert "AppLoader_Nup::IdentifyType(file)" in core, "NUP Switch 2 platform detection missing"
-          assert 'GetFile("main.npdm")' in core and "GetUpdatePackages()" in core
-          assert "GetUpdatePackages()" in nup and "executable->exefs_dir" in nup
-          assert "GetUpdatePackages()" in loader and 'GetFile("main")' in loader
-          print("Verified NUP scanner, runtime executable and Switch 2 platform detection")
           PY
       - name: Apply standalone BluSwitch 2 branding
         run: |
