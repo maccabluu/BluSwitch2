@@ -45,6 +45,13 @@ window.BluSettings={
  },
  select:function(id){
   if(id==='folders'){window.BluSwitch.open('files');return;}
+  // Open emulator data directly inside BluSwitch instead of Android DocumentsUI.
+  // Do not navigate to another installed Eden SX2A DocumentsProvider.
+  if(id==='data-folder'){
+   window.BluSwitch.open('user-files');
+   window.BluSwitch.browseUserFiles('');
+   return;
+  }
   var valid=options.some(function(o){return o[0]===id;});
   if(valid && window.BluNative && window.BluNative.openSetting)window.BluNative.openSetting(id);
  },
