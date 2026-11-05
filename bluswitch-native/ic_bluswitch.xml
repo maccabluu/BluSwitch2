@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BluSwitch2 original B icon for the one-APK native launcher. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FF071F61"
+          android:pathData="M16,16 C16,9 21,6 28,6 L80,6 C87,6 92,11 92,18 L92,80 C92,87 87,92 80,92 L28,92 C21,92 16,87 16,80 Z"/>
+    <path android:fillColor="#FF50BFFF"
+          android:pathData="M37,24 L58,24 C74,24 80,34 77,44 C76,49 73,51 69,54 C78,57 81,64 78,74 C75,83 67,86 55,86 L37,86 Z"/>
+    <path android:fillColor="#FF071F61"
+          android:pathData="M49,35 L56,35 C65,35 68,39 65,44 C64,47 62,48 56,48 L49,48 Z"/>
+    <path android:fillColor="#FF071F61"
+          android:pathData="M49,60 L57,60 C67,60 69,64 67,69 C65,73 62,74 57,74 L49,74 Z"/>
+    <path android:fillColor="#FF98E6FF"
+          android:pathData="M24,80 L24,28 L30,28 L30,80 Z"/>
+</vector>
