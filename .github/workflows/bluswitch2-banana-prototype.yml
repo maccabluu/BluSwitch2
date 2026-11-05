@@ -4,6 +4,9 @@ on:
     branches: [bluswitch2-clean-rebuild]
     paths:
       - '.github/workflows/bluswitch2-banana-prototype.yml'
+      - 'bluswitch-ui/**'
+      - 'bluswitch-native/**'
+      - 'scripts/port-banana-ui.py'
   workflow_dispatch:
 
 permissions:
@@ -57,6 +60,24 @@ jobs:
           test -f banana-source/android/ondevice/build.sh
           test -f banana-source/android/NOTICE.md
           echo "Pinned Pokopia native engine sources verified"
+      - name: Apply BluSwitch2 blue native frontend
+        run: |
+          set -euo pipefail
+          python3 scripts/port-banana-ui.py banana-source
+          test -f banana-source/android/app/src/main/java/dev/nxnative/android/BluSwitchNativeUi.java
+          test -f banana-source/android/app/src/main/assets/bluswitch/app.js
+          grep -q 'BluSwitchNativeUi.show(this, frame)' banana-source/android/app/src/main/java/dev/nxnative/android/MainActivity.java
+          ! grep -q 'store.js' banana-source/android/app/src/main/assets/bluswitch/index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("banana-source/android/app/src/main/assets/bluswitch")
+          js=(root/"app.js").read_text()
+          assert 'Prepare / Play' in js
+          assert "saveBackup" in js and "saveRestore" in js
+          assert "BluSwitch2 Settings" in (root/"settings-hub.js").read_text()
+          assert "BluStore" not in js
+          print("BluSwitch2 Library, game preparation, saves and settings frontend verified")
+          PY
       - name: Build genuine on-device preparation engine
         run: |
           cd banana-source
