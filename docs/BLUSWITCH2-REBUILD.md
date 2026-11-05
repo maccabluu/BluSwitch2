@@ -17,11 +17,11 @@ Upstream source tag is pinned to commit `243bae31a836503d216bb0003e90b194d4366ba
 ## Integration plan
 
 1. **Current:** Clean UI and regression tests on this isolated branch; no Shop or Media.
-2. **First engine proof:** Build a genuine Banana Native ARM64 prototype pinned to v0.1.5, with Pokopia's publicly defined game profile and real on-device preparation tools. Use a distinct test application ID and no included games, keys, game code or shader packs.
+2. **Engine proof completed:** A genuine Banana Native ARM64 prototype pinned to v0.1.5 built successfully with the Pokopia public profile and real preparation tools. No games, keys, code extracted from games or shader packs are bundled.
 3. **On-device comparison:** Try the prototype on an AYN Thor Pro with the user's own game dump. Check GPU driver, RAM, preparation, game version, logs and actual gameplay. Back up saves first.
-4. **One app:** Once engine proof works, replace the BluSwitch2 launch/backend layer with native Banana game list, Prepare, Play, logs, settings, driver and save APIs. Rebuild our blue UI against that backend, not just an Android redirect or a second installed app.
+4. **One APK integrated:** The blue BluSwitch2 Library, Files, Favourites, Saves, Controller and Settings screens now run as the visible WebView frontend inside the Banana Native APK. Its JavaScript bridge calls the same app's native Add Game, Prepare/Play, save backup/restore, GPU driver and log functions. No second app is launched from the BluSwitch2 interface. The original native screen is retained behind the frontend while migration continues.
 5. **Release:** Keep the user-approved package identity and update signature when practical. Provide a migration/export path for Eden saves, settings and imported folder access. Do not silently overwrite/delete existing emulator data.
 
 Banana's full application incorporates GPL-3.0-or-later components despite the MIT upstream core. Preserve copyright notices, code-source link and licenses in the shipped app.
 
-No gameplay compatibility claim is made for this branch until on-device testing succeeds.
+**5 November 2026:** native engine compiled; BluSwitch2 blue frontend integrated and compiled in the APK. A separately installable BluSwitch2-branded test package is being built because GitHub test-run debug signing keys differ. Pokémon Pokopia gameplay on AYN Thor Pro is still unverified. The prior BluSwitch2 and Banana Native Preview packages remain untouched; do not uninstall them to test this one.
