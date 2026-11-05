@@ -3,13 +3,10 @@
 var games = [], current = 'home', error = '', busy = true;
 var nav = [
   ['home','Library','gamepad','#9838ee'],
-  ['collections','Collections','layers','#ff8b00'],
+  ['collections','Favourites','layers','#ff8b00'],
   ['files','Files','folder','#efa900'],
-  ['store','Store','bag','#f13b67'],
-  ['media','Media','media','#1686f8'],
   ['saves','Saves','bookmark','#00b9ac'],
   ['controller','Controller','gamepad','#335ff8'],
-  ['handheld','Handheld Mode','handheld','#8235e8'],
   ['settings','Settings','settings','#57647d'],
   ['power','Power','power','#526582']
 ];
@@ -17,10 +14,7 @@ var paths = {
  gamepad:'<path d="M6 8h12c2 0 3 1 4 5l1 4c.4 3-2 4-4 2l-3-2H8l-3 2c-2 2-4.4 1-4-2l1-4c1-4 2-5 4-5Z"/><path d="M8 11v6m-3-3h6"/><circle cx="17" cy="12" r=".9" fill="currentColor" stroke="none"/><circle cx="19" cy="15" r=".9" fill="currentColor" stroke="none"/>',
  layers:'<path d="m12 2 10 5-10 5L2 7l10-5Zm-10 10 10 5 10-5M2 17l10 5 10-5"/>',
  folder:'<path d="M2 6a2 2 0 0 1 2-2h5l3 3H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z"/>',
- bag:'<path d="M4 8h16l1 13H3L4 8Zm5 1V6a3 3 0 0 1 6 0v3"/>',
- media:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m10 8 6 4-6 4Z"/>',
  bookmark:'<path d="M5 3h14v19l-7-4-7 4Z"/>',
- handheld:'<rect x="2" y="5" width="20" height="14" rx="3"/><rect x="8" y="7" width="8" height="10" rx="1"/><path d="M5 10v4M3 12h4"/><circle cx="19" cy="11" r=".8" fill="currentColor"/>',
  settings:'<path d="M10 2h4l.6 2.5 1.9.8 2.2-1.3 2.8 2.8-1.3 2.2.8 1.9L23 11v4l-2.5.6-.8 1.9 1.3 2.2-2.8 2.8-2.2-1.3-1.9.8L14 24h-4l-.6-2.5-1.9-.8-2.2 1.3-2.8-2.8 1.3-2.2-.8-1.9L1 15v-4l2.5-.6.8-1.9L3 6.3 5.8 3.5 8 4.8l1.9-.8Z" transform="translate(0 -1) scale(.96)"/><circle cx="12" cy="12" r="3"/>',
  power:'<path d="M12 2v10M6.4 5.3A9 9 0 1 0 17.6 5.3"/>'
 };
@@ -160,11 +154,8 @@ function render() {
  else if(current==='files')view.innerHTML=renderFiles();
  else if(current==='user-files')view.innerHTML=renderUserFiles();
  else if(current==='settings')view.innerHTML=renderSettings();
- else if(current==='store')view.innerHTML=window.BluStore ? window.BluStore.render() : section('Homebrew Store','Homebrew catalogue unavailable.','');
- else if(current==='media')view.innerHTML=section('Media','Media capture management is not available yet. This screen is part of BluSwitch 2 and will not open another emulator.',actionButton('Back to library','home'));
  else if(current==='saves')view.innerHTML=section('Saves','The emulator stores game saves in its app data. Save browsing and backup controls are not available in this version.',actionButton('Back to library','home'));
  else if(current==='controller')view.innerHTML=renderController();
- else if(current==='handheld')view.innerHTML=section('Handheld Mode','BluSwitch 2 is running in landscape handheld mode. Native gameplay graphics and input settings are controlled by the emulator engine.',actionButton('Back to library','home'));
  else view.innerHTML=library(false);
 }
 window.BluSwitch = {
@@ -199,8 +190,6 @@ window.BluSwitch = {
   nativeCall('previewUserFile',entry.path);
  },
  closeUserPreview:function(){userFiles.preview=null;render();},
- isStoreOpen:function(){return current==='store';},
- setStoreCatalog:function(json){if(window.BluStore)window.BluStore.receive(json);},
  setGames:function(json) {
   try { games=JSON.parse(json); busy=false; error=''; render(); }
   catch(e) {this.showError('Could not load your game list.');}
@@ -236,7 +225,9 @@ window.BluSwitch = {
   if(id==='power'){
    if(confirm('Exit BluSwitch 2?'))nativeCall('exit');return;
   }
-  current=id;render();
+  // Only render supported pages; old deep links cannot reopen removed screens.
+  current=nav.some(function(item){return item[0]===id && id!=='power';}) || id==='user-files' ? id : 'home';
+  render();
  }
 };
 document.addEventListener('DOMContentLoaded',function(){
