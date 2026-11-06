@@ -34,7 +34,7 @@ new = """    signingConfigs {
 assert gradle.count(old) == 1, "Signing config changed"
 gradle = gradle.replace(old, new, 1)
 old = """            signingConfig nxLive ? signingConfigs.live : signingConfigs.debug"""
-new = """            signingConfig (nxLive || bluswitchStable) ? signingConfigs.live : signingConfigs.debug"""
+new = """            signingConfig = (nxLive || bluswitchStable) ? signingConfigs.live : signingConfigs.debug"""
 assert gradle.count(old) == 1, "Release signing configuration changed"
 gradle = gradle.replace(old, new, 1)
 source.write_text(gradle, encoding="utf-8")
