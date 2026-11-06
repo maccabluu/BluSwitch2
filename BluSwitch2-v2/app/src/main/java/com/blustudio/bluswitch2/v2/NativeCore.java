@@ -13,4 +13,10 @@ public final class NativeCore {
 
     // Test only. Executes our own synthetic ARM64 instructions, not game files.
     public static native String runEngineSelfTest();
+
+    // A self-authored ELF fixture, interpreted by the experimental guest CPU.
+    public static native String runLoaderSelfTest();
+
+    // Bounded read-only input: static AArch64 test ELF, not a Switch game.
+    public static native String runA64Elf(byte[] elfFile);
 }

@@ -33,3 +33,8 @@ There is no Switch 2 gameplay claim, native engine build, on-device measurement 
 5. When authorised, build a separate APK and conduct controlled real-device tests.
 
 All external code integration will retain GPL source and attribution.
+
+
+## ELF64/AArch64 test loader
+
+The new elf_loader.cpp restricts image loading to static, self-authored AArch64 ELF64 ET_EXEC programs in a bounded virtual-memory region. It validates program headers, entrypoint, alignment and image size before writing segments. Test code runs under the small existing guest interpreter. The Android UI offers a built-in loader test and a document picker for user-authored ELF binaries. No Switch 2 game executable format or console OS is supported. No APK rebuild was performed for this milestone.

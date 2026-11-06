@@ -3,6 +3,9 @@ package com.blustudio.bluswitch2.v2;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -29,6 +32,7 @@ import java.util.concurrent.Executors;
 /** A new BluSwitch 2.0 application. It does not load or modify the old BluSwitch2 app. */
 public final class MainActivity extends Activity {
     private static final int PICK_FOLDER = 2020;
+    private static final int PICK_TEST_ELF = 2021;
     private static final String PREFS = "bluswitch_v2_library";
     private static final String FOLDERS = "game_trees";
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -127,6 +131,14 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams testParams = lp(210, 46);
         testParams.topMargin = dp(15);
         hero.addView(engineTest, testParams);
+        Button loaderTest = action("Test ELF loader", v -> runLoaderSelfTest());
+        LinearLayout.LayoutParams loaderParams = lp(210, 46);
+        loaderParams.topMargin = dp(8);
+        hero.addView(loaderTest, loaderParams);
+        Button openElf = action("Open test ELF", v -> openTestElfPicker());
+        LinearLayout.LayoutParams elfParams = lp(210, 46);
+        elfParams.topMargin = dp(8);
+        hero.addView(openElf, elfParams);
 
         LinearLayout libraryTitle = new LinearLayout(this);
         libraryTitle.setGravity(Gravity.CENTER_VERTICAL);
@@ -183,6 +195,60 @@ public final class MainActivity extends Activity {
         preferences.edit().putString(FOLDERS, array.toString()).apply();
     }
 
+    private void openTestElfPicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivityForResult(intent, PICK_TEST_ELF);
+    }
+
+    private void runLoaderSelfTest() {
+        worker.execute(() -> {
+            String result;
+            try {
+                result = NativeCore.runLoaderSelfTest();
+            } catch (LinkageError | RuntimeException e) {
+                result = "ELF loader self-test failed: " + e.getClass().getSimpleName();
+            }
+            final String message = result;
+            runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle("Experimental ELF loader")
+                    .setMessage(message)
+                    .setPositiveButton("OK", null)
+                    .show());
+        });
+    }
+
+    private void inspectTestElf(Uri uri) {
+        worker.execute(() -> {
+            String result;
+            try (InputStream in = getContentResolver().openInputStream(uri);
+                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                if (in == null) throw new IOException("Unable to open selected document");
+                byte[] buffer = new byte[8192];
+                int n;
+                int total = 0;
+                while ((n = in.read(buffer)) != -1) {
+                    if (n == 0) continue;
+                    total += n;
+                    if (total > 4 * 1024 * 1024)
+                        throw new IOException("Test ELF exceeds 4 MB");
+                    out.write(buffer, 0, n);
+                }
+                result = NativeCore.runA64Elf(out.toByteArray());
+            } catch (Exception | LinkageError e) {
+                result = "Test ELF error: " + e.getMessage();
+            }
+            final String message = result;
+            runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle("Self-authored AArch64 ELF")
+                    .setMessage(message)
+                    .setPositiveButton("OK", null)
+                    .show());
+        });
+    }
+
     private void openFolderPicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -193,6 +259,10 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == PICK_TEST_ELF && result == RESULT_OK && data != null) {
+            if (data.getData() != null) inspectTestElf(data.getData());
+            return;
+        }
         if (request != PICK_FOLDER || result != RESULT_OK || data == null) return;
         Uri tree = data.getData();
         if (tree == null) return;
