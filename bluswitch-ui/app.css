@@ -102,17 +102,6 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .blu-controller-tile:focus-visible,.blu-controller-tile:hover{background:#d4eaff;outline-color:#147cff}
 @media(max-width:620px){.blu-controller-grid{grid-template-columns:1fr}.blu-controller-tile{min-height:67px}}
 
-/* BluSwitch native Homebrew Store */
-.blu-store .action-row { align-items:center; flex-wrap:wrap; margin:14px 0; }
-.blu-store input,.blu-store select { background:#101b37; color:#fff; border:1px solid #405c91; border-radius:12px; padding:12px; font:inherit; min-width:180px; }
-.blu-store input { flex:1; }
-.blu-store-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; padding:8px 0 20px; }
-.blu-store-tile { text-align:left; border:1px solid #355284; border-radius:16px; background:linear-gradient(140deg,#182d57,#0c1731); color:white; padding:15px; min-height:118px; display:flex; flex-direction:column; gap:7px; cursor:pointer; }
-.blu-store-tile strong { font-size:15px; }
-.blu-store-tile small { color:#8fcaff; }
-.blu-store-tile span { color:#cad7ef; font-size:12px; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.blu-store-tile:focus-visible { outline:3px solid #36c5ff; outline-offset:2px; }
-
 /* BluSwitch data browser, replacing Eden-labelled external file manager */
 .blu-user-file-list { display:flex; flex-direction:column; gap:9px; margin:16px 0 24px; }
 .blu-user-file-row { display:flex; align-items:center; gap:14px; width:100%; text-align:left; background:rgba(35,102,211,.1); border:1px solid rgba(62,115,205,.35); border-radius:14px; padding:14px; color:inherit; cursor:pointer; }
@@ -130,3 +119,17 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .bluswitch-quicklaunch{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 13px;padding:10px 12px;background:#eaf5ff;border:1px solid #acd6ff;border-radius:14px}
 .bluswitch-quicklaunch .primary-btn{flex:0 0 auto}
 .bluswitch-quicklaunch span{flex:1 1 230px;font-size:12px;color:#183968;line-height:1.4}
+
+/* BluSwitch2 native Prepare/Play flow. Preparation is real, never a fake pack.tsv. */
+.game-prep-state{position:absolute;z-index:2;top:7px;left:7px;right:7px;max-height:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;border-radius:8px;padding:5px 6px;background:#08295de6;color:white;font-size:clamp(9px,1.8vh,12px);font-weight:800;pointer-events:none}
+.game-prep-state.ready{background:#0a654be9;color:#eafff6}
+.game-prep-state.needs-prep{background:#08418ee8;color:#e2f5ff}
+.game-prep-state.unsupported{background:#873530ed;color:#fff3ef}
+.game-prep-button{position:absolute;z-index:4;right:7px;bottom:35px;border:1px solid #c6f5ff;border-radius:9px;padding:6px 10px;background:#06a9ef;color:white;font-size:clamp(9px,1.8vh,12px);font-weight:850;cursor:pointer}
+.game-prep-button:focus-visible{outline:3px solid #003d86}
+.blu-preparation{display:flex;flex-direction:column;gap:6px;background:#e6f3ff;border:1px solid #9fcdff;border-radius:15px;padding:10px 14px;margin:4px 12px 10px;color:#16417c;min-width:220px}
+.blu-prep-head{display:flex;justify-content:space-between;gap:16px;font-size:clamp(12px,2vh,16px)}
+.blu-preparation p{margin:0;font-size:11px;line-height:1.4;color:#284e82}
+.blu-preparation progress{width:100%;height:14px;accent-color:#087dfe}
+.blu-preparation .action-row{justify-content:flex-start}
+@media(max-height:440px){.game-prep-button{padding:3px 6px;bottom:30px}.game-prep-state{padding:3px 5px}.blu-preparation{gap:4px;padding:6px 10px}}

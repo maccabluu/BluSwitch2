@@ -1,0 +1,149 @@
+name: BluSwitch2 Android default debug signing
+on:
+  workflow_dispatch:
+  push:
+    branches: [bluswitch2-clean-rebuild]
+    paths:
+      - 'docs/BLUSWITCH2-BUILD-REQUEST.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bluswitch2-banana-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify BluSwitch2 frontend patch syntax
+        run: |
+          python3 -m py_compile scripts/port-banana-ui.py scripts/port-pokopia-v327680.py
+          node scripts/verify-navigation.cjs
+      - name: Check preinstalled Android native build tools
+        run: |
+          set -euo pipefail
+          missing=()
+          for command in zsh ninja cmake curl unzip perl git clang pkg-config; do
+            if ! command -v "$command" >/dev/null 2>&1; then
+              if [ "$command" = ninja ]; then missing+=(ninja-build); else missing+=("$command"); fi
+            fi
+          done
+          if (( ${#missing[@]} )); then
+            echo "Missing tools: ${missing[*]}"
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+          else
+            echo "All required build tools are preinstalled"
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install pinned Android SDK command-line tools
+        run: |
+          set -euo pipefail
+          SDK="$RUNNER_TEMP/bluswitch-banana-sdk"
+          mkdir -p "$SDK/cmdline-tools"
+          curl -fL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/android-tools.zip" https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip
+          echo "4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583  $RUNNER_TEMP/android-tools.zip" | sha256sum --check -
+          unzip -q "$RUNNER_TEMP/android-tools.zip" -d "$SDK/cmdline-tools"
+          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+      - name: Install Android SDK/NDK
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses > /dev/null || true
+          sdkmanager --sdk_root="$ANDROID_HOME" "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Fetch pinned Banana Native v0.1.5 source
+        run: |
+          git -c http.version=HTTP/1.1 clone --depth 1 --branch v0.1.5 https://github.com/moceure/BananaNative.git banana-source
+          test "$(git -C banana-source rev-parse HEAD)" = "243bae31a836503d216bb0003e90b194d4366bad"
+          test -f banana-source/dm/games/0400A3A01EE4C000/game.tsv
+          test -f banana-source/android/ondevice/build.sh
+          test -f banana-source/android/NOTICE.md
+          echo "Pinned Pokopia native engine sources verified"
+      - name: Enable experimental Pokopia v327680 profile
+        run: |
+          set -euo pipefail
+          python3 scripts/port-pokopia-v327680.py banana-source
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("banana-source/dm/games/0400A3A01EE4C000/game.tsv").read_text()
+          assert "build\tv327680\tv327680\tmain=816c5358e8178d802fcec4a7ce5a741a" in p
+          assert "romfs_marker\tmotor_asset_re/KIDS_PLATFORM_OUNCE/0x38f972af.fdata" in p
+          assert "package\tv327680" in p
+          assert "build\tv655360" not in p
+          print("Verified exact game version and build ID from user screenshot")
+          PY
+      - name: Apply BluSwitch2 blue native frontend
+        run: |
+          set -euo pipefail
+          python3 scripts/port-banana-ui.py banana-source
+          test -f banana-source/android/app/src/main/java/dev/nxnative/android/BluSwitchNativeUi.java
+          test -f banana-source/android/app/src/main/assets/bluswitch/app.js
+          grep -q 'BluSwitchNativeUi.show(this, frame)' banana-source/android/app/src/main/java/dev/nxnative/android/MainActivity.java
+          ! grep -q 'store.js' banana-source/android/app/src/main/assets/bluswitch/index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("banana-source/android/app/src/main/assets/bluswitch")
+          js=(root/"app.js").read_text()
+          assert 'Prepare / Play' in js
+          assert "saveBackup" in js and "saveRestore" in js
+          assert "BluSwitch2 Settings" in (root/"settings-hub.js").read_text()
+          assert "BluStore" not in js
+          assert "renderPreparation()" in js and "prepareGame" in js
+          native=Path("banana-source/android/app/src/main/java/dev/nxnative/android/BluSwitchNativeUi.java").read_text()
+          assert 'void prepareGame(int index)' in native
+          assert 'void controlPreparation(String action)' in native
+          print("BluSwitch2 Library, Prepare/Play, live pack progress and settings verified")
+          PY
+          node --check banana-source/android/app/src/main/assets/bluswitch/app.js
+          node --check banana-source/android/app/src/main/assets/bluswitch/settings-hub.js
+      - name: Build genuine on-device preparation engine
+        run: |
+          cd banana-source
+          zsh android/ondevice/build.sh "$RUNNER_TEMP/bluswitch-native-packer"
+          test -f "$RUNNER_TEMP/bluswitch-native-packer/stage/lib/libnxpack.so"
+          test -f "$RUNNER_TEMP/bluswitch-native-packer/stage/lib/libdmsh_xlate.so"
+          test -f "$RUNNER_TEMP/bluswitch-native-packer/stage/lib/libSPIRV-Tools-shared.so"
+      - name: Build BluSwitch2 APK using original Android debug signing
+        run: |
+          cd banana-source/android/app
+          chmod +x gradlew
+          ./gradlew --no-daemon \
+            -PnxGames=0400A3A01EE4C000 \
+            -PnxApp=bluswitchpack \
+            -PnxLabel="BluSwitch2" \
+            -PnxVersion="0.2.3-bluswitch2" \
+            -PnxVersionCode=${{ github.run_number }} \
+            -PnxPackStage="$RUNNER_TEMP/bluswitch-native-packer/stage" \
+            apk
+          test -s out/nxnative-android-bluswitchpack.apk
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          cp out/nxnative-android-bluswitchpack.apk "$GITHUB_WORKSPACE/output/BluSwitch2.apk"
+          (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2.apk > SHA256SUMS.txt)
+      - name: Verify APK install compatibility, signing and alignment
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/output/BluSwitch2.apk"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/zipalign" -c -p 4 "$APK"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -E '^(package:|sdkVersion:|targetSdkVersion:|native-code:|application-label:)' 
+      - name: Upload BluSwitch2 debug-signed APK if build succeeds
+        uses: actions/upload-artifact@v4
+        with:
+          name: BluSwitch2-Android
+          path: output/
+          if-no-files-found: error
+          retention-days: 14

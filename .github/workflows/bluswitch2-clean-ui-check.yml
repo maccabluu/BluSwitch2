@@ -1,0 +1,43 @@
+name: BluSwitch2 clean UI checks
+on:
+  push:
+    branches: [bluswitch2-clean-rebuild]
+    paths:
+      - 'bluswitch-ui/**'
+      - 'scripts/verify-*.cjs'
+      - 'scripts/apply-ui.py'
+      - '.github/workflows/bluswitch2-clean-ui-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  interface:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify clean Library and game launch UI
+        run: |
+          node scripts/verify-navigation.cjs
+          node scripts/verify-bluswitch-folder.cjs
+          node scripts/verify-emulation-library.cjs
+          node scripts/verify-container-inspector.cjs
+          node scripts/verify-settings-gameplay.cjs
+          node scripts/verify-branding-controller.cjs
+          python3 -m py_compile scripts/apply-ui.py
+      - name: Ensure abandoned Shop and Media are not shipped
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          js = Path("bluswitch-ui/app.js").read_text()
+          html = Path("bluswitch-ui/index.html").read_text()
+          launcher = Path("bluswitch-ui/BluSwitchHomeActivity.kt").read_text()
+          copying = Path("scripts/apply-ui.py").read_text()
+          assert not Path("bluswitch-ui/store.js").exists()
+          for value in ["['store'", "['media'", "['handheld'", "BluStore", "setStoreCatalog", "isStoreOpen"]:
+              assert value not in js, f"Old UI route still in JS: {value}"
+          assert 'store.js' not in html and 'store.js' not in copying
+          assert 'requestStoreCatalog' not in launcher and 'downloadHomebrew' not in launcher
+          print("PASS: Shop/Media removed from UI and unused Store downloader")
+          PY

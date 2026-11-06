@@ -32,7 +32,7 @@ window.BluSwitch.setGames(JSON.stringify([
   {title:'Test game',index:0,favorite:false}
 ]));
 calls.length = 0;
-const views = ['home','collections','files','store','media','saves','controller','handheld','settings'];
+const views = ['home','collections','files','saves','controller','settings'];
 for(const page of views){
   window.BluSwitch.open(page);
   assert(nodes['main-view'].innerHTML, 'Page '+page+' renders empty');
@@ -42,4 +42,15 @@ window.BluSwitch.open('settings');
 window.BluSwitch.back();
 assert(nodes['main-view'].innerHTML.includes('Your game library'), 'Back did not return to BluSwitch Library');
 assert(!calls.some(x=>x[0]==='openAdvanced'), 'Back opened Eden');
-console.log('PASS: all nine BluSwitch menu pages and Back remain in BluSwitch');
+// Removing a tab must also remove its navigable route.
+for (const removed of ['store','media','handheld']) {
+  window.BluSwitch.open(removed);
+  assert(nodes['main-view'].innerHTML.includes('Your game library'),
+    'Removed '+removed+' route should return to the library');
+}
+const dock = nodes['dock'].innerHTML;
+assert(dock.includes('Favourites'), 'Favourites shortcut missing');
+for(const label of ['Store','Media','Handheld Mode']) {
+  assert(!dock.includes(label), 'Removed menu item remains: '+label);
+}
+console.log('PASS: clean BluSwitch menu, no Shop/Media/Handheld and no Eden redirects');

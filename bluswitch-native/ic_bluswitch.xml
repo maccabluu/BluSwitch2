@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original BluSwitch2 icon: deep blue circular badge with cyan curved 2 logo,
+     restored from the reference supplied by the app owner. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Full circular app badge -->
+    <path android:fillColor="#FF092FAE"
+          android:pathData="M54,13 C76.7,13 95,31.3 95,54 C95,76.7 76.7,95 54,95 C31.3,95 13,76.7 13,54 C13,31.3 31.3,13 54,13 Z"/>
+    <path android:fillColor="#FF0C3FC4"
+          android:pathData="M54,17 C74.4,17 91,33.6 91,54 C91,74.4 74.4,91 54,91 C33.6,91 17,74.4 17,54 C17,33.6 33.6,17 54,17 Z"/>
+    <!-- The cyan upper ribbon, its open left edge and curved top -->
+    <path android:fillColor="#FF03DDF3"
+          android:pathData="M34,35 L57,35 C70,35 75.8,41 76.3,47.4 C76.8,54.8 71.3,59.5 61.8,63.5 L34,75 L34,63.7 L57.4,53.8 C63.7,51.2 65,49.7 64.7,47.3 C64.4,44.5 61.9,44 56,44 L34,44 Z"/>
+    <!-- Blue lower ribbon, offset underneath the cyan symbol -->
+    <path android:fillColor="#FF086CF3"
+          android:pathData="M34,76.7 L59.3,66.2 C66.8,63.1 70.8,58.8 73.4,55.2 C78.2,59.1 80.6,63.4 80.1,68.6 C79.7,75.6 74.7,80.3 62.9,84.5 L34,90 L34,80.4 L59.6,73.6 C65.5,71.9 69.1,69.3 68.9,66.2 C66.6,68 63.3,69.8 59.7,71.3 Z"/>
+    <path android:fillColor="#FF268DFF"
+          android:pathData="M34,80.4 L57.7,73.8 L53.9,84.2 L34,90 Z"/>
+</vector>
