@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - bluswitch2-eden-library-repair
       - bluswitch2-original-ui
       - bluswitch2-ingame-library-persistence
       - bluswitch2-core-repair-isolated
