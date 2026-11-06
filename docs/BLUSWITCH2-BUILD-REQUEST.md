@@ -9,3 +9,5 @@ Retry 2: stable Gradle signingConfig assignment corrected; use the SAME BluSwitc
 Android installation compatibility audit: verify apksigner signature and zip alignment before release.
 
 Installer compatibility rebuild: explicitly sign with v1, v2 and v3 using the existing permanent key.
+
+Installer signature retry: corrected shell command quoting, still using same permanent signing keystore.
