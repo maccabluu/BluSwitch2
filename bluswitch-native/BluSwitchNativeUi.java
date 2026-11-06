@@ -85,8 +85,19 @@ final class BluSwitchNativeUi {
                     item.put("titleId", game.titleId);
                     item.put("path", game.gameDir);
                     item.put("favorite", favorites != null && favorites.contains(game.gameDir));
-                    item.put("supported", Profile.of(game.titleId) != null);
-                    item.put("ready", Game.ready(game));
+                    boolean supported = Profile.of(game.titleId) != null;
+                    boolean ready = supported && Game.ready(game);
+                    boolean preparable = supported && Ondevice.isDump(new File(game.gameDir));
+                    boolean hasPack = new File(game.packDir, "pack.tsv").isFile();
+                    item.put("supported", supported);
+                    item.put("ready", ready);
+                    item.put("preparable", preparable);
+                    item.put("hasPack", hasPack);
+                    item.put("packPath", game.packDir);
+                    item.put("status", ready ? "Ready to play" : !supported ?
+                            "Game profile not included" : preparable ?
+                            "Needs preparing" : hasPack ? "Pack needs checking" :
+                            "No pack: use a supported base/updates dump or .nup");
                 } catch (org.json.JSONException ignored) {}
                 list.put(item);
             }
@@ -116,6 +127,29 @@ final class BluSwitchNativeUi {
             result.put("files", files);
             result.put("ready", true);
             result.put("allFiles", Environment.isExternalStorageManager());
+            JSONArray supported = new JSONArray();
+            for (Profile p : Profile.all()) supported.put(p.name);
+            result.put("supportedGames", supported);
+            File jobFile = Job.remembered(activity);
+            if (jobFile != null && jobFile.isFile()) {
+                try {
+                    Job job = Job.read(jobFile);
+                    JSONObject progress = new JSONObject();
+                    progress.put("name", job.name());
+                    progress.put("titleId", job.titleId());
+                    progress.put("state", job.state());
+                    progress.put("step", job.stepText());
+                    progress.put("percent", (int) Math.round(job.overall() * 100));
+                    progress.put("shadersDone", job.shadersDone());
+                    progress.put("shadersTotal", job.shadersTotal());
+                    progress.put("error", job.error());
+                    progress.put("packCreated", new File(job.pack(), "pack.tsv").isFile());
+                    progress.put("packPath", job.pack().getPath());
+                    result.put("preparation", progress);
+                } catch (java.io.IOException ignored) {
+                    result.put("preparationError", "Previous preparation record cannot be read");
+                }
+            }
         } catch (org.json.JSONException ignored) {}
         deliver(activity, "setStatus", result.toString());
     }
@@ -164,7 +198,25 @@ final class BluSwitchNativeUi {
         @JavascriptInterface public void requestGames() { update(activity); }
         @JavascriptInterface public void requestStatus() { sendStatus(activity); }
         @JavascriptInterface public void launchGame(int index) {
-            ui(() -> { Game g = game(activity, index); if (g != null) activity.launch(g); });
+            ui(() -> {
+                Game g = game(activity, index);
+                if (g == null) return;
+                // A missing or incomplete pack must be prepared, never booted.
+                if (!Game.ready(g)) {
+                    activity.bluPrepareGame(g);
+                    return;
+                }
+                activity.launch(g);
+            });
+        }
+        @JavascriptInterface public void prepareGame(int index) {
+            ui(() -> {
+                Game g = game(activity, index);
+                if (g != null) activity.bluPrepareGame(g);
+            });
+        }
+        @JavascriptInterface public void controlPreparation(String action) {
+            ui(() -> Ondevice.control(activity, "pause".equals(action)));
         }
         @JavascriptInterface public void diagnoseGame(int index) {
             ui(() -> { Game g = game(activity, index); if (g != null) activity.bluManage(g); });
