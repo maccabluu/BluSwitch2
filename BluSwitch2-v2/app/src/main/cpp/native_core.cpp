@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "engine_core.h"
+#include "game_demo.h"
 #include "elf_loader.h"
 #include <vector>
 #include <jni.h>
@@ -62,4 +63,17 @@ Java_com_blustudio_bluswitch2_v2_NativeCore_runLoaderSelfTest(
     JNIEnv* env, jclass) {
     const std::string report=bluswitch2::elfLoaderSelfTest();
     return env->NewStringUTF(report.c_str());
+}
+
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_blustudio_bluswitch2_v2_NativeCore_stepMiniGame(
+    JNIEnv* env, jclass, jint x, jint y, jint moves, jint won, jint direction) {
+    const auto state=bluswitch2::stepMiniGame(x,y,moves,won,direction);
+    const jint values[6]={
+        state.x,state.y,state.moves,state.won,
+        static_cast<jint>(state.guestInstructions),state.error.empty()?1:0
+    };
+    jintArray result=env->NewIntArray(6);
+    if(result!=nullptr)env->SetIntArrayRegion(result,0,6,values);
+    return result;
 }

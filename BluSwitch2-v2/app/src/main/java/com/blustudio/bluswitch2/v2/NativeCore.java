@@ -19,4 +19,8 @@ public final class NativeCore {
 
     // Bounded read-only input: static AArch64 test ELF, not a Switch game.
     public static native String runA64Elf(byte[] elfFile);
+
+    // Returns x, y, moves, won, instruction count, success.
+    // Movement and victory are decided by the guest AArch64 program.
+    public static native int[] stepMiniGame(int x, int y, int moves, int won, int direction);
 }

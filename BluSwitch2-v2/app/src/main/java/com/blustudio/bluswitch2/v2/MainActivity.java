@@ -131,6 +131,10 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams testParams = lp(210, 46);
         testParams.topMargin = dp(15);
         hero.addView(engineTest, testParams);
+        Button playDemo = action("Play Blu Treasure Hunt", v -> MiniGameDialog.show(this));
+        LinearLayout.LayoutParams demoParams = lp(240, 46);
+        demoParams.topMargin = dp(10);
+        hero.addView(playDemo, demoParams);
         Button loaderTest = action("Test ELF loader", v -> runLoaderSelfTest());
         LinearLayout.LayoutParams loaderParams = lp(210, 46);
         loaderParams.topMargin = dp(8);

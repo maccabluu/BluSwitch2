@@ -54,3 +54,9 @@ Experimental AArch64 interpreter includes MOVZ, MOVK, MOVN, 64-bit ADD/SUB immed
 The independent loader now accepts restricted, static little-endian ELF64 AArch64 ET_EXEC programs smaller than 4 MB within an 8 MB guest-memory window. The new Test ELF loader button runs a self-authored three-instruction ELF. The Open test ELF option selects locally created test executables through Android's document picker. The guest CPU interpreter enforces a maximum of 100,000 instructions.
 
 Input is validated before mapping. Unsupported formats, overlapping segments, invalid offsets, bad executable entrypoints and out-of-range memory are rejected. The original app is unaffected. The loader does not support Switch 2 NSO/NRO/NSP/XCI, firmware, operating system services, Vulkan guest graphics, dynamic linking or commercial game execution. Builds are manual-only.
+
+## Original guest-CPU mini-game (source milestone)
+
+`Play Blu Treasure Hunt` opens a 3×3 treasure game. Direction buttons feed player position and input to a self-authored AArch64 guest program executed by our interpreter. The guest code handles board boundaries, move counts and the winning square at (2,2). Android only displays the board and sends controller input. `tests/test_game_demo.cpp` exercises movement and victory logic using a local native compiler.
+
+This is an original educational game within the emulator, **not** Switch 2 homebrew compatibility or commercial Switch 2 game support. The code is committed to the independent branch, but requires a **separately authorised** APK build before it appears on your AYN Thor Pro. Existing BluSwitch2 installs and saved data are unaffected.
