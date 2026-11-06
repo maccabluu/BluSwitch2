@@ -36,3 +36,7 @@ For the project comparison and source decisions read [research](docs/engine-comp
 Open `BluSwitch2-v2/` in Android Studio, install Android SDK 35 and NDK/CMake, and sync the Gradle project. It targets Android 13+ and arm64-v8a. A successful build would only prove the new app shell and native probe compile, **not** Switch 2 emulation.
 
 Licence: GPL-3.0-or-later.
+
+## Independent native engine work
+
+The new `engine_core.cpp` now contains **untested** original ARM64 decoder and bounded guest-memory source, with a synthetic three-instruction test available from the home screen. This is a small real CPU execution experiment, **not Switch 2 gameplay**. See [native architecture](docs/native-engine-architecture.md).

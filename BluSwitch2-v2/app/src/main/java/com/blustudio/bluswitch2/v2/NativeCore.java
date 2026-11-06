@@ -10,4 +10,7 @@ public final class NativeCore {
 
     // 1 = NSO0 recognised; 0 = other; negative = unable to probe.
     public static native int inspectExecutable(int fileDescriptor);
+
+    // Test only. Executes our own synthetic ARM64 instructions, not game files.
+    public static native String runEngineSelfTest();
 }

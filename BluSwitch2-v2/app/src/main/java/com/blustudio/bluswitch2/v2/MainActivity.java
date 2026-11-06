@@ -123,6 +123,11 @@ public final class MainActivity extends Activity {
         hero.addView(text("Add a folder containing extracted game directories. BluSwitch 2.0 will check them without moving or changing files.",
                 15, false, Color.rgb(203, 224, 245)));
 
+        Button engineTest = action("Test native CPU", v -> runEngineTest());
+        LinearLayout.LayoutParams testParams = lp(210, 46);
+        testParams.topMargin = dp(15);
+        hero.addView(engineTest, testParams);
+
         LinearLayout libraryTitle = new LinearLayout(this);
         libraryTitle.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams sectionParams = lp(-1, 50);
@@ -270,6 +275,23 @@ public final class MainActivity extends Activity {
             final String message = verdict;
             runOnUiThread(() -> new AlertDialog.Builder(this)
                     .setTitle(game.title)
+                    .setMessage(message)
+                    .setPositiveButton("OK", null)
+                    .show());
+        });
+    }
+
+    private void runEngineTest() {
+        worker.execute(() -> {
+            String result;
+            try {
+                result = NativeCore.runEngineSelfTest();
+            } catch (LinkageError | RuntimeException e) {
+                result = "Unable to run the native test: " + e.getClass().getSimpleName();
+            }
+            final String message = result;
+            runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle("BluSwitch 2.0 Native CPU")
                     .setMessage(message)
                     .setPositiveButton("OK", null)
                     .show());
