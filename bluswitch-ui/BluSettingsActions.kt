@@ -15,6 +15,9 @@ import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.dialogs.NetPlayDialog
 import org.yuzu.yuzu_emu.features.DocumentProvider
 import org.yuzu.yuzu_emu.features.settings.model.Settings
+import org.yuzu.yuzu_emu.features.settings.model.BooleanSetting
+import org.yuzu.yuzu_emu.features.settings.model.IntSetting
+import org.yuzu.yuzu_emu.utils.NativeConfig
 import org.yuzu.yuzu_emu.features.settings.ui.SettingsActivity
 import org.yuzu.yuzu_emu.features.settings.ui.SettingsSubscreen
 import org.yuzu.yuzu_emu.features.settings.ui.SettingsSubscreenActivity
@@ -53,6 +56,9 @@ class BluSettingsActions(
             when (id) {
                 "readiness" -> subscreen(SettingsSubscreen.SWITCH2_READINESS)
                 "advanced" -> settings(Settings.MenuTag.SECTION_ROOT)
+                "graphics" -> settings(Settings.MenuTag.SECTION_RENDERER)
+                "performance-stats" -> settings(Settings.MenuTag.SECTION_PERFORMANCE_STATS)
+                "performance" -> performancePreset()
                 "app" -> settings(Settings.MenuTag.SECTION_APP_SETTINGS)
                 "controls" -> settings(Settings.MenuTag.SECTION_INPUT)
                 "player-one" -> settings(Settings.MenuTag.SECTION_INPUT_PLAYER_ONE)
@@ -86,6 +92,67 @@ class BluSettingsActions(
         } catch (ex: Exception) {
             message("BluSwitch 2", "This setting could not open: " + (ex.message ?: "Unknown error"))
         }
+    }
+
+    private fun performancePreset() {
+        val currentResolution = IntSetting.RENDERER_RESOLUTION.getInt(needsGlobal = true)
+        val currentShaders = BooleanSetting.RENDERER_ASYNCHRONOUS_SHADERS.getBoolean(
+            needsGlobal = true
+        )
+        val currentBackend = IntSetting.CPU_BACKEND.getInt(needsGlobal = true)
+        val currentPresentation = NativeConfig.getBoolean("async_presentation", true)
+        val preferences = activity.getSharedPreferences("bluswitch_performance", 0)
+        AlertDialog.Builder(activity)
+            .setTitle("Eden performance mode")
+            .setMessage(
+                "Use Eden's recommended Switch 2 settings?\n\n" +
+                "Dynarmic CPU, asynchronous shaders, presentation synchronisation, " +
+                "and no higher than 1× internal resolution.\n\n" +
+                "Your current settings will be saved so you can restore them. " +
+                "This may reduce stutter, but cannot fix an incompatible game."
+            )
+            .setPositiveButton("Apply settings") { _, _ ->
+                try {
+                    preferences.edit()
+                        .putInt("cpu", currentBackend)
+                        .putBoolean("shaders", currentShaders)
+                        .putBoolean("presentation", currentPresentation)
+                        .putInt("resolution", currentResolution)
+                        .putBoolean("backup", true)
+                        .apply()
+                    IntSetting.CPU_BACKEND.setInt(0)
+                    BooleanSetting.RENDERER_ASYNCHRONOUS_SHADERS.setBoolean(true)
+                    NativeConfig.setBoolean("async_presentation", false)
+                    if (currentResolution > 3) IntSetting.RENDERER_RESOLUTION.setInt(3)
+                    NativeConfig.saveGlobalConfig()
+                    message("Performance mode", "Eden settings saved. Restart the game to apply them.")
+                } catch (ex: Exception) {
+                    message("Performance mode", "Unable to change settings: " +
+                        (ex.message ?: "Unknown error"))
+                }
+            }
+            .setNeutralButton("Restore previous") { _, _ ->
+                if (!preferences.getBoolean("backup", false)) {
+                    message("Performance mode", "No previous settings saved yet.")
+                } else {
+                    try {
+                        IntSetting.CPU_BACKEND.setInt(preferences.getInt("cpu", 0))
+                        BooleanSetting.RENDERER_ASYNCHRONOUS_SHADERS.setBoolean(
+                            preferences.getBoolean("shaders", true)
+                        )
+                        NativeConfig.setBoolean("async_presentation",
+                            preferences.getBoolean("presentation", true))
+                        IntSetting.RENDERER_RESOLUTION.setInt(
+                            preferences.getInt("resolution", 3))
+                        NativeConfig.saveGlobalConfig()
+                        message("Performance mode", "Previous settings restored.")
+                    } catch (ex: Exception) {
+                        message("Performance mode", "Unable to restore settings.")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun settings(tag: Settings.MenuTag) {
