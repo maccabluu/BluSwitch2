@@ -1,11 +1,6 @@
 name: BluSwitch 2.0 independent prototype
+# Manual runs only. Do not start builds on commits.
 on:
-  push:
-    branches:
-      - bluswitch2-v2-independent
-    paths:
-      - 'BluSwitch2-v2/**'
-      - '.github/workflows/bluswitch2-v2-independent.yml'
   workflow_dispatch:
 
 permissions:
@@ -23,6 +18,10 @@ jobs:
             app/src/main/cpp/engine_core.cpp tests/test_engine_core.cpp \
             -o /tmp/bluswitch2-v2-tests
           /tmp/bluswitch2-v2-tests
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -Iapp/src/main/cpp \
+            app/src/main/cpp/engine_core.cpp app/src/main/cpp/elf_loader.cpp \
+            tests/test_elf_loader.cpp -o /tmp/bluswitch2-v2-elf-tests
+          /tmp/bluswitch2-v2-elf-tests
 
   isolated-apk:
     needs: native-tests

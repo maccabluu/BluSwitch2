@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "engine_core.h"
+#include <algorithm>
 #include <sstream>
 
 namespace bluswitch2 {
@@ -47,6 +48,23 @@ bool GuestMemory::load64(uint64_t address, uint64_t& output) const {
     for (unsigned i = 0; i < 8; ++i) {
         output |= uint64_t(bytes_[offset + i]) << (8 * i);
     }
+    return true;
+}
+
+bool GuestMemory::contains(uint64_t address, uint64_t count) const {
+    if(address<base_)return false;
+    const uint64_t off=address-base_;
+    return off<=bytes_.size() && count<=bytes_.size()-off;
+}
+bool GuestMemory::storeBytes(uint64_t address,const uint8_t* src,std::size_t count) {
+    if(!valid(address,count) || (count>0 && src==nullptr))return false;
+    if(count>0)
+        std::copy_n(src,count,bytes_.begin()+static_cast<std::size_t>(address-base_));
+    return true;
+}
+bool GuestMemory::zeroBytes(uint64_t address,std::size_t count) {
+    if(!valid(address,count))return false;
+    std::fill_n(bytes_.begin()+static_cast<std::size_t>(address-base_),count,uint8_t{0});
     return true;
 }
 

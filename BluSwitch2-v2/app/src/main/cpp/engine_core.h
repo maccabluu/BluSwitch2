@@ -17,6 +17,9 @@ public:
     bool store32(uint64_t address, uint32_t value);
     bool load64(uint64_t address, uint64_t& output) const;
     bool store64(uint64_t address, uint64_t value);
+    bool contains(uint64_t address, uint64_t count) const;
+    bool storeBytes(uint64_t address, const uint8_t* data, std::size_t count);
+    bool zeroBytes(uint64_t address, std::size_t count);
 private:
     bool valid(uint64_t address, std::size_t count) const;
     const uint64_t base_;
