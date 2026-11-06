@@ -1,6 +1,10 @@
 name: BluSwitch2 single app signed update
 on:
   workflow_dispatch:
+  push:
+    branches: [bluswitch2-clean-rebuild]
+    paths:
+      - 'docs/BLUSWITCH2-BUILD-REQUEST.md'
 
 permissions:
   contents: read
