@@ -1,13 +1,5 @@
-name: BluSwitch2 Banana Native engine proof
+name: BluSwitch2 single app signed update
 on:
-  push:
-    branches: [bluswitch2-clean-rebuild]
-    paths:
-      - '.github/workflows/bluswitch2-banana-prototype.yml'
-      - 'bluswitch-ui/**'
-      - 'bluswitch-native/**'
-      - 'scripts/port-banana-ui.py'
-      - 'scripts/port-pokopia-v327680.py'
   workflow_dispatch:
 
 permissions:
@@ -23,9 +15,23 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      - name: Verify permanent BluSwitch2 release signing key
+        env:
+          BLUSWITCH_KEY_B64: ${{ secrets.BLUSWITCH2_KEYSTORE_B64 }}
+          BLUSWITCH_KEY_ALIAS: ${{ secrets.BLUSWITCH2_KEY_ALIAS }}
+          BLUSWITCH_KEY_PASSWORD: ${{ secrets.BLUSWITCH2_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$BLUSWITCH_KEY_B64" || -z "$BLUSWITCH_KEY_ALIAS" || -z "$BLUSWITCH_KEY_PASSWORD" ]]; then
+            echo "::error::BluSwitch2 requires the three permanent signing secrets before an APK is built. See docs/BLUSWITCH2-SINGLE-APP.md"
+            exit 1
+          fi
+          printf '%s' "$BLUSWITCH_KEY_B64" | base64 --decode > "$RUNNER_TEMP/bluswitch2-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/bluswitch2-release.jks" -alias "$BLUSWITCH_KEY_ALIAS" -storepass "$BLUSWITCH_KEY_PASSWORD" > /dev/null
+          echo "Persistent BluSwitch2 signing certificate verified"
       - name: Verify BluSwitch2 frontend patch syntax
         run: |
-          python3 -m py_compile scripts/port-banana-ui.py scripts/port-pokopia-v327680.py
+          python3 -m py_compile scripts/port-banana-ui.py scripts/port-pokopia-v327680.py scripts/enable-stable-bluswitch-signing.py
           node scripts/verify-navigation.cjs
       - name: Check preinstalled Android native build tools
         run: |
@@ -93,6 +99,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/port-banana-ui.py banana-source
+          python3 scripts/enable-stable-bluswitch-signing.py banana-source
+          grep -q "def bluswitchStable = nxApp == 'bluswitchpack'" banana-source/android/app/build.gradle
           test -f banana-source/android/app/src/main/java/dev/nxnative/android/BluSwitchNativeUi.java
           test -f banana-source/android/app/src/main/assets/bluswitch/app.js
           grep -q 'BluSwitchNativeUi.show(this, frame)' banana-source/android/app/src/main/java/dev/nxnative/android/MainActivity.java
@@ -120,25 +128,30 @@ jobs:
           test -f "$RUNNER_TEMP/bluswitch-native-packer/stage/lib/libnxpack.so"
           test -f "$RUNNER_TEMP/bluswitch-native-packer/stage/lib/libdmsh_xlate.so"
           test -f "$RUNNER_TEMP/bluswitch-native-packer/stage/lib/libSPIRV-Tools-shared.so"
-      - name: Build experimental BluSwitch2 native test APK
+      - name: Build the ONE updateable BluSwitch2 APK
+        env:
+          NX_SIGN_STORE: ${{ runner.temp }}/bluswitch2-release.jks
+          NX_SIGN_ALIAS: ${{ secrets.BLUSWITCH2_KEY_ALIAS }}
+          NX_SIGN_PASS: ${{ secrets.BLUSWITCH2_KEY_PASSWORD }}
         run: |
           cd banana-source/android/app
           chmod +x gradlew
           ./gradlew --no-daemon \
             -PnxGames=0400A3A01EE4C000 \
-            -PnxApp=bluswitchv327680 \
+            -PnxApp=bluswitchpack \
             -PnxLabel="BluSwitch2" \
-            -PnxVersion="0.2.2-pokopia-327680-alpha" \
+            -PnxVersion="0.2.3-bluswitch2" \
+            -PnxVersionCode=${{ github.run_number }} \
             -PnxPackStage="$RUNNER_TEMP/bluswitch-native-packer/stage" \
             apk
-          test -s out/nxnative-android-bluswitchv327680.apk
+          test -s out/nxnative-android-bluswitchpack.apk
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp out/nxnative-android-bluswitchv327680.apk "$GITHUB_WORKSPACE/output/BluSwitch2-Pokopia-327680-Experimental.apk"
-          (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2-Pokopia-327680-Experimental.apk > SHA256SUMS.txt)
-      - name: Upload native prototype if build succeeds
+          cp out/nxnative-android-bluswitchpack.apk "$GITHUB_WORKSPACE/output/BluSwitch2.apk"
+          (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2.apk > SHA256SUMS.txt)
+      - name: Upload the ONE BluSwitch2 update if build succeeds
         uses: actions/upload-artifact@v4
         with:
-          name: BluSwitch2-Pokopia-327680-Experimental-Android
+          name: BluSwitch2-Android
           path: output/
           if-no-files-found: error
           retention-days: 14
