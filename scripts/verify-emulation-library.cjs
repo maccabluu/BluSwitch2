@@ -24,7 +24,7 @@ assert(/findExeFSGames\(File\(path\)\)[\s\S]{0,1100}NativeConfig\.addGameDir\(Ga
 assert(kt.includes('bluswitch_imported_games'), 'Individual files need durable preferences');
 assert(kt.includes('bluswitch_extracted_folders'), 'Eden loose game folder imports need durable preferences');
 assert(kt.includes('private fun rememberExtractedFolder(uri: android.net.Uri)'), 'Directly launched games must be remembered');
-assert(kt.includes('if (GameHelper.findExeFSGames(File(localPath)).isNotEmpty())'), 'Add game folder must detect playable loose ExeFS games');
+assert(kt.includes('val looseGames = GameHelper.findExeFSGames(File(localPath))') && kt.includes('if (looseGames.isNotEmpty())'), 'Add game folder must detect playable loose ExeFS games');
 assert(kt.includes('extractedFolderUris().forEach { savedUri ->'), 'Library refresh must rescan remembered native ExeFS folders');
 assert(kt.includes('if (found.none { it.path == candidate.path }) found.add(candidate)'), 'Reimporting loose games must avoid duplicate covers');
 assert(kt.includes('remembered.remove(removed.uriString)'), 'Removing a folder must not re-add it on the next refresh');
