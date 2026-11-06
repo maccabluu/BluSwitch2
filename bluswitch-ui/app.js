@@ -101,7 +101,6 @@ function renderFiles() {
   '<h2>Individual game files</h2>'+fileList+
   '<div class="action-row">'+actionButton('Add Switch 2 game','launchExeFSFolder')+actionButton('Add game folder','addFolder')+
   actionButton('Add game file','addGameFile')+actionButton('Refresh library','refresh',true)+
-  actionButton('Homebrew Store','store',true)+
   (!status.allFiles?actionButton('Enable game folder access','enableStorage',true):'')+
   '</div><p class="notice">'+safe(storage)+'</p></section>';
 }
@@ -160,7 +159,6 @@ function render() {
  else if(current==='files')view.innerHTML=renderFiles();
  else if(current==='user-files')view.innerHTML=renderUserFiles();
  else if(current==='settings')view.innerHTML=renderSettings();
- else if(current==='store')view.innerHTML=window.BluStore ? window.BluStore.render() : section('Homebrew Store','Homebrew catalogue unavailable.','');
  else if(current==='media')view.innerHTML=section('Media','Media capture management is not available yet. This screen is part of BluSwitch 2 and will not open another emulator.',actionButton('Back to library','home'));
  else if(current==='saves')view.innerHTML=section('Saves','The emulator stores game saves in its app data. Save browsing and backup controls are not available in this version.',actionButton('Back to library','home'));
  else if(current==='controller')view.innerHTML=renderController();
@@ -199,8 +197,6 @@ window.BluSwitch = {
   nativeCall('previewUserFile',entry.path);
  },
  closeUserPreview:function(){userFiles.preview=null;render();},
- isStoreOpen:function(){return current==='store';},
- setStoreCatalog:function(json){if(window.BluStore)window.BluStore.receive(json);},
  setGames:function(json) {
   try { games=JSON.parse(json); busy=false; error=''; render(); }
   catch(e) {this.showError('Could not load your game list.');}
@@ -236,7 +232,7 @@ window.BluSwitch = {
   if(id==='power'){
    if(confirm('Exit BluSwitch 2?'))nativeCall('exit');return;
   }
-  var internalScreens=['store','media','handheld','user-files'];
+  var internalScreens=['media','handheld','user-files'];
   current=nav.some(function(item){return item[0]===id;}) || internalScreens.indexOf(id)>=0 ? id : 'home';
   render();
  }
