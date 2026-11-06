@@ -68,7 +68,7 @@ function library(showFavorites) {
  (showFavorites?'Your favourites':'Your game library')+' · '+items.length+' '+(items.length===1?'game':'games')+
  '</span><div><button onclick="BluSwitch.refresh()">Refresh</button><button onclick="BluSwitch.addFolder()">+ Add game folder</button></div></div>'+
  '<div class="bluswitch-quicklaunch"><button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Add Switch 2 game</button>'+
- '<span>Choose a supported game folder, then press Play on its cover. Eden launches games directly without a separate preparation step.</span></div>'+
+ '<span>Choose a compatible game folder, then press Play on its cover.</span></div>'+
  '<div class="game-strip" aria-label="Your games">'+items.map(card).join('')+'</div></section>';
 }
 var status = {keys:false, firmware:false, folders:[], files:[], ready:false};
@@ -95,7 +95,7 @@ function renderFiles() {
  }).join('')+'</div>' : '<p class="notice">No individual game files selected.</p>';
  var storage=status.ready ? (status.allFiles?'Loose ExeFS folder access enabled.':'Loose ExeFS folders may need Android All files access.') : '';
  return '<section class="screen-panel"><h1>Game files</h1>'+
-  '<p class="notice">Choose a supported game folder or game file. BluSwitch2 uses Eden directly, with no Banana Native preparation or pack.tsv.</p>'+
+  '<p class="notice">Choose a compatible game folder or file. Supported titles launch using Eden.</p>'+
   '<p class="notice">Your selected folders and game files are kept when you close a game. Only files recognised by the emulator appear in Library.</p>'+
   '<h2>Game folders</h2>'+folderList+
   '<h2>Individual game files</h2>'+fileList+
