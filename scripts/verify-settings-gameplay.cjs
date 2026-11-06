@@ -47,8 +47,9 @@ assert(nodes['main-view'].innerHTML.includes('Game files'), 'Game folders did no
 assert(nodes['main-view'].innerHTML.includes('Add Switch 2 game'), 'Loose game launch missing');
 window.BluSwitch.launchExeFSFolder();
 assert(invocations.some(([k])=>k==='launchExeFSFolder'), 'ExeFS launcher not connected to native picker');
-assert(nodes['main-view'].innerHTML.includes('Homebrew Store'), 'Keep the existing store accessible from Files after compacting the dock');
+assert(!nodes['main-view'].innerHTML.includes('Homebrew Store'), 'Deleted shop must be absent from Files');
+assert(!js.includes('BluStore') && !home.includes('downloadHomebrew'), 'Deleted shop functionality must stay removed');
 window.BluSwitch.open('store');
-assert(nodes['main-view'].innerHTML.includes('Homebrew Store'), 'Store page must still be reachable');
+assert(nodes['main-view'].innerHTML.includes('Your game library'), 'Deleted shop route should safely return to Library');
 window.BluSwitch.open('files');
 console.log('PASS settings native actions, UI routes, real ExeFS launcher and no Eden home redirects');
