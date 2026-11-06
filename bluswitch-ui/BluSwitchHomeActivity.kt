@@ -99,6 +99,21 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         (getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
             .getStringSet("uris", emptySet()) ?: emptySet()).sorted()
 
+    // Eden can launch loose ExeFS folders directly, but the regular scanner
+    // may not return them as library games after reopening the app. Remember
+    // those folders independently, then rescan them with the same native helper
+    // used by the successful one-off folder launch.
+    private fun extractedFolderUris(): List<String> =
+        (getSharedPreferences("bluswitch_extracted_folders", MODE_PRIVATE)
+            .getStringSet("uris", emptySet()) ?: emptySet()).sorted()
+
+    private fun rememberExtractedFolder(uri: android.net.Uri) {
+        val prefs = getSharedPreferences("bluswitch_extracted_folders", MODE_PRIVATE)
+        val folders = (prefs.getStringSet("uris", emptySet()) ?: emptySet()).toMutableSet()
+        folders.add(uri.toString())
+        prefs.edit().putStringSet("uris", folders).apply()
+    }
+
     private fun removeImportedGame(index: Int) {
         val files = importedGameUris()
         if (index !in files.indices) return
@@ -152,6 +167,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                         contentResolver.takePersistableUriPermission(
                             uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
                         )
+                        rememberExtractedFolder(uri)
                         val savedDirs = NativeConfig.getGameDirs()
                         if (savedDirs.none { it.uriString == uri.toString() }) {
                             NativeConfig.addGameDir(GameDir(uri.toString(), true))
@@ -386,9 +402,16 @@ class BluSwitchHomeActivity : AppCompatActivity() {
             try {
                 val dirs = NativeConfig.getGameDirs().toMutableList()
                 if (index !in dirs.indices) return@execute
-                dirs.removeAt(index)
+                val removed = dirs.removeAt(index)
                 NativeConfig.setGameDirs(dirs.toTypedArray())
                 NativeConfig.saveGlobalConfig()
+                // Do not re-add a deliberately removed extracted game folder
+                // from BluSwitch's own persistence during the next scan.
+                val prefs = getSharedPreferences("bluswitch_extracted_folders", MODE_PRIVATE)
+                val remembered = (prefs.getStringSet("uris", emptySet()) ?: emptySet()).toMutableSet()
+                if (remembered.remove(removed.uriString)) {
+                    prefs.edit().putStringSet("uris", remembered).apply()
+                }
                 notifyUi("onAction", "Game folder removed from library. Files were not deleted.")
                 refreshStatus()
                 refreshGames()
@@ -457,6 +480,22 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         io.execute {
             try {
                 val found = GameHelper.getGames().toMutableList()
+                // Extracted Switch 2 games are launched by the native ExeFS
+                // helper, not necessarily by the ordinary NSP/XCI game scan.
+                // Rescan imported extracted folders so their cover and Play
+                // button remain available after returning from a game.
+                extractedFolderUris().forEach { savedUri ->
+                    try {
+                        val path = PathUtil.getPathFromUri(android.net.Uri.parse(savedUri))
+                        if (path != null && File(path).isDirectory) {
+                            GameHelper.findExeFSGames(File(path)).forEach { candidate ->
+                                if (found.none { it.path == candidate.path }) found.add(candidate)
+                            }
+                        }
+                    } catch (ex: Exception) {
+                        android.util.Log.w("BluSwitch2", "Extracted folder temporarily unavailable", ex)
+                    }
+                }
                 // SAF file imports are not part of GameHelper's folder scanner.
                 // Re-add valid selections from persistent storage after every native scan.
                 importedGameUris().forEach { path ->
