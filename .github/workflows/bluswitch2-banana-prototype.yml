@@ -22,6 +22,10 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      - name: Verify BluSwitch2 frontend patch syntax
+        run: |
+          python3 -m py_compile scripts/port-banana-ui.py
+          node scripts/verify-navigation.cjs
       - name: Install Android native build tools
         run: |
           sudo apt-get update
@@ -76,8 +80,14 @@ jobs:
           assert "saveBackup" in js and "saveRestore" in js
           assert "BluSwitch2 Settings" in (root/"settings-hub.js").read_text()
           assert "BluStore" not in js
-          print("BluSwitch2 Library, game preparation, saves and settings frontend verified")
+          assert "renderPreparation()" in js and "prepareGame" in js
+          native=Path("banana-source/android/app/src/main/java/dev/nxnative/android/BluSwitchNativeUi.java").read_text()
+          assert 'void prepareGame(int index)' in native
+          assert 'void controlPreparation(String action)' in native
+          print("BluSwitch2 Library, Prepare/Play, live pack progress and settings verified")
           PY
+          node --check banana-source/android/app/src/main/assets/bluswitch/app.js
+          node --check banana-source/android/app/src/main/assets/bluswitch/settings-hub.js
       - name: Build genuine on-device preparation engine
         run: |
           cd banana-source
