@@ -34,6 +34,12 @@ assert(kt.includes('extractedFolderGameCache[savedUri]'), 'Loose game folders sh
 assert(kt.includes('GameMetadata.getIcon(game.path)'), 'Covers must still be fetched');
 assert(kt.includes('coverCache.get(game.path)') && kt.includes('coverCache.put(game.path, art)'), 'Game covers should be reused on subsequent refreshes');
 assert(kt.includes('refreshGames(forceRescan = true)'), 'Manual Refresh must recheck changed game files');
+assert(kt.includes('gameScanActive.compareAndSet(false, true)'), 'Do not run duplicate native game scans during boot');
+assert(kt.includes('statusScanActive.compareAndSet(false, true)'), 'Do not run duplicate content inspections during boot');
+assert(kt.includes('if (currentGames.isEmpty()) handler.postDelayed({ refreshGames() }, 400)'), 'Do not rescan existing games every time gameplay returns');
+assert(kt.includes('if (forceRescan) rescanRequested = true'), 'Explicit Refresh must not be dropped when a scan is running');
+assert(kt.includes('if (rescanRequested && !closing && !nativeGameLaunching)'), 'Manual refreshes must be honoured when active scan completes');
+
 
 assert(kt.includes('GameHelper.getGame(uri, true)'), 'Saved individual files must be rescanned on resume');
 assert(kt.includes('fun pickGameFile()'), 'Single game picker bridge missing');
