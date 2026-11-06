@@ -44,6 +44,11 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
     @Volatile private var nativeGameLaunching = false
+    // Keep Android/WebView lifecycle events from starting duplicate game scans
+    // while the emulator is loading. Explicit user refreshes are not lost.
+    private val gameScanActive = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val statusScanActive = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var rescanRequested = false
     // Avoid expensive repeated ExeFS directory scans and cover decoding.
     // Both caches are only used on the serial library worker.
     private val extractedFolderGameCache = mutableMapOf<String, List<Game>>()
@@ -385,13 +390,15 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     }
 
     private fun refreshStatus() {
-        if (closing) return
+        if (closing || nativeGameLaunching) return
         if (!DirectoryInitialization.areDirectoriesReady) {
             handler.postDelayed({ refreshStatus() }, 400)
             return
         }
+        if (!statusScanActive.compareAndSet(false, true)) return
         io.execute {
             try {
+                if (closing || nativeGameLaunching) return@execute
                 val state = JSONObject()
                 state.put("ready", true)
                 state.put("keys", NativeLibrary.areKeysPresent())
@@ -419,9 +426,11 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     imported.put(item)
                 }
                 state.put("files", imported)
-                notifyUi("setStatus", state.toString())
+                if (!nativeGameLaunching) notifyUi("setStatus", state.toString())
             } catch (ex: Exception) {
-                notifyUi("onAction", "Could not check setup status.")
+                if (!nativeGameLaunching) notifyUi("onAction", "Could not check setup status.")
+            } finally {
+                statusScanActive.set(false)
             }
         }
     }
@@ -488,7 +497,9 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         nativeGameLaunching = false
-        handler.postDelayed({ refreshGames() }, 400)
+        // The WebView already requests a scan on first load. Reuse the list
+        // on return from a game instead of scanning every mounted game again.
+        if (currentGames.isEmpty()) handler.postDelayed({ refreshGames() }, 400)
         handler.postDelayed({ refreshStatus() }, 500)
     }
 
@@ -508,9 +519,13 @@ class BluSwitchHomeActivity : AppCompatActivity() {
             handler.postDelayed({ refreshGames(forceRescan) }, 300)
             return
         }
+        if (!gameScanActive.compareAndSet(false, true)) {
+            if (forceRescan) rescanRequested = true
+            return
+        }
         io.execute {
-            if (closing || nativeGameLaunching) return@execute
             try {
+                if (closing || nativeGameLaunching) return@execute
                 val found = GameHelper.getGames().toMutableList()
                 // Extracted Switch 2 games are launched by the native ExeFS
                 // helper, not necessarily by the ordinary NSP/XCI game scan.
@@ -574,7 +589,13 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 }
                 if (!nativeGameLaunching) notifyUi("setGames", results.toString())
             } catch (ex: Exception) {
-                notifyUi("showError", ex.message ?: "Unable to scan games")
+                if (!nativeGameLaunching) notifyUi("showError", ex.message ?: "Unable to scan games")
+            } finally {
+                gameScanActive.set(false)
+                if (rescanRequested && !closing && !nativeGameLaunching) {
+                    rescanRequested = false
+                    handler.post { refreshGames(forceRescan = true) }
+                }
             }
         }
     }
