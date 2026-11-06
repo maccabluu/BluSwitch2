@@ -1,11 +1,6 @@
 name: BluSwitch Unified | one Android app
-# One user-authorised unified app build. Restore manual-only after run starts.
+# Manual-only: do not automatically build the unified app.
 on:
-  push:
-    branches:
-      - bluswitch2-v2-independent
-    paths:
-      - 'BluSwitch2-v2/.authorised-unified-build'
   workflow_dispatch:
 
 concurrency:
