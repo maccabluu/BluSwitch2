@@ -11,3 +11,5 @@ Android installation compatibility audit: verify apksigner signature and zip ali
 Installer compatibility rebuild: explicitly sign with v1, v2 and v3 using the existing permanent key.
 
 Installer signature retry: corrected shell command quoting, still using same permanent signing keystore.
+
+Rollback request: remove all BluSwitch2 custom signing logic and use Banana Native's original debug signing for one APK. No BLUSWITCH2 signing secrets and no release re-signing step. Keep package ID and UI unchanged.
