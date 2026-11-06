@@ -1,6 +1,7 @@
 (function () {
 'use strict';
 var games = [], current = 'home', error = '', busy = true;
+var coverNote='';
 // Seven-tab launcher from the newer BluSwitch2 design.
 // Native gameplay is still handled directly by Eden, never Banana Prepare.
 var nav = [
@@ -45,9 +46,13 @@ function renderDock() {
   return '<button class="dock-item '+(current===n[0]?'active':'')+'" style="--icon-color:'+n[3]+'" onclick="BluSwitch.open(\''+n[0]+'\')" aria-label="'+n[1]+'">'+svg(n[2])+'<span>'+n[1]+'</span></button>';
  }).join('');
 }
+function coverMarkup(g, cls) {
+ var initials=String(g.title||'B').trim().split(/\s+/).slice(0,2).map(function(p){return p.charAt(0);}).join('').toUpperCase();
+ return g.art ? '<img class="'+cls+' cover-image" src="'+safe(g.art)+'" alt=""/>' :
+  '<div class="'+cls+' blank-art"><span>'+safe(initials||'B')+'</span></div>';
+}
 function card(g) {
- var art = g.art ? '<img class="cover" src="'+g.art+'" alt=""/>' : '<div class="blank-art">B</div>';
- return '<article class="game-card">'+art+
+ return '<article class="game-card" data-index="'+g.index+'">'+coverMarkup(g,'cover')+
  '<div class="game-label">'+safe(g.title)+'</div>'+
  '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Play</button>'+
  '<button class="game-check" aria-label="Check game boot for '+safe(g.title)+'" onclick="BluSwitch.diagnose('+g.index+')">Check boot</button>'+
@@ -64,12 +69,24 @@ function library(showFavorites) {
    '<button class="secondary-btn" onclick="BluSwitch.addGameFile()">Add game file</button>'+
    '<button class="secondary-btn" onclick="BluSwitch.refresh()">Refresh library</button></div></div>';
  }
- return '<section class="carousel-panel"><div class="carousel-meta"><span>'+
+ var featured=items.slice().sort(function(a,b){return (b.lastPlayed||0)-(a.lastPlayed||0);})[0];
+ var headline=featured.lastPlayed?'CONTINUE PLAYING':'READY TO PLAY';
+ return '<section class="carousel-panel console-home">'+
+ '<div class="console-hero" data-feature-index="'+featured.index+'">'+
+ '<div class="console-hero-art">'+coverMarkup(featured,'featured-art')+'</div>'+
+ '<div class="console-hero-content"><span class="console-eyebrow">'+headline+' · BLUSWITCH 2</span>'+
+ '<h1>'+safe(featured.title)+'</h1><p>Your next game is ready.</p>'+
+ '<div class="console-hero-actions"><button class="primary-btn play-feature" onclick="BluSwitch.play('+featured.index+')">▶ Play now</button>'+
+ '<button class="secondary-btn" onclick="BluSwitch.getCovers()">Get covers</button>'+
+ '<button class="secondary-btn" onclick="BluSwitch.open(\'files\')">Manage games</button></div></div>'+
+ '<div class="console-hero-count">'+items.length+' GAMES</div></div>'+
+ '<div class="carousel-meta"><span>'+
  (showFavorites?'Your favourites':'Your game library')+' · '+items.length+' '+(items.length===1?'game':'games')+
  '</span><div><button onclick="BluSwitch.refresh()">Refresh</button><button onclick="BluSwitch.addFolder()">+ Add game folder</button></div></div>'+
  '<div class="bluswitch-quicklaunch"><button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Add Switch 2 game</button>'+
  '<span>Choose a compatible game folder, then press Play on its cover.</span></div>'+
- '<div class="game-strip" aria-label="Your games">'+items.map(card).join('')+'</div></section>';
+ '<div class="game-strip" aria-label="Your games">'+items.map(card).join('')+'</div>'+
+ '<div class="console-feedback" role="status">'+safe(coverNote||'Choose a compatible game folder, then press Play on its cover.')+'</div></section>';
 }
 var status = {keys:false, firmware:false, folders:[], files:[], ready:false};
 var notice = '';
@@ -201,6 +218,24 @@ window.BluSwitch = {
   try { games=JSON.parse(json); busy=false; error=''; render(); }
   catch(e) {this.showError('Could not load your game list.');}
  },
+ setCover:function(json){
+  try{
+   var update=JSON.parse(json),g=games.find(function(x){return x.index===update.index;});
+   if(!g || !/^data:image\/(png|jpeg);base64,/.test(update.art))return;
+   g.art=update.art;
+   var nodes=document.querySelectorAll('.game-card[data-index="'+update.index+'"] .cover, .console-hero[data-feature-index="'+update.index+'"] .featured-art');
+   Array.prototype.forEach.call(nodes,function(node){
+    if(node.tagName.toLowerCase()==='img'){node.src=update.art;return;}
+    var img=document.createElement('img');img.className=node.className.replace('blank-art','cover-image');
+    img.alt='';img.src=update.art;node.parentNode.replaceChild(img,node);
+   });
+  }catch(e){}
+ },
+ onCoversComplete:function(message){
+  coverNote=String(message||'');var node=document.querySelector('.console-feedback');
+  if(node)node.textContent=coverNote;
+ },
+ getCovers:function(){coverNote='Looking up covers...';render();nativeCall('requestCovers');},
  showError:function(message) { error=message;busy=false;render(); },
  refresh:function(){ busy=true;render();nativeCall('requestGames'); },
  play:function(index){nativeCall('launchGame',index);},
@@ -235,8 +270,20 @@ window.BluSwitch = {
   var internalScreens=['media','handheld','user-files'];
   current=nav.some(function(item){return item[0]===id;}) || internalScreens.indexOf(id)>=0 ? id : 'home';
   render();
+  if(current==='files')nativeCall('requestFileStatus');
+  else if(current==='settings')nativeCall('requestStatus');
  }
 };
+document.addEventListener('keydown',function(e){
+ if(current!=='home' && current!=='collections')return;
+ if(e.key!=='ArrowLeft' && e.key!=='ArrowRight')return;
+ var buttons=Array.prototype.slice.call(document.querySelectorAll('.game-card .game-open'));
+ var index=buttons.indexOf(document.activeElement);
+ if(index<0)return;
+ e.preventDefault();
+ var next=Math.min(buttons.length-1,Math.max(0,index+(e.key==='ArrowRight'?1:-1)));
+ buttons[next].focus();buttons[next].scrollIntoView({block:'nearest',inline:'center'});
+});
 document.addEventListener('DOMContentLoaded',function(){
  updateClock();setInterval(updateClock,30000);render();
  nativeCall('requestGames');
