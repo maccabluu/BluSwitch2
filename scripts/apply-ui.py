@@ -21,6 +21,7 @@ target.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(repo / "bluswitch-ui/BluSwitchHomeActivity.kt", target)
 shutil.copyfile(repo / "bluswitch-ui/SwitchContainerInspector.kt", target.parent / "SwitchContainerInspector.kt")
 shutil.copyfile(repo / "bluswitch-ui/BluSettingsActions.kt", target.parent / "BluSettingsActions.kt")
+shutil.copyfile(repo / "bluswitch-ui/BluCoverArt.kt", target.parent / "BluCoverArt.kt")
 assets = app / "src/main/assets/bluswitch"
 assets.mkdir(parents=True, exist_ok=True)
 for name in ("index.html", "app.css", "app.js", "settings-hub.js"):
