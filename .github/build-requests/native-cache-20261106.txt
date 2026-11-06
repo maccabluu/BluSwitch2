@@ -1,2 +1,0 @@
-User approved building the native cache update on 2026-11-06.
-One build request only. Preserve existing package, signing certificate and saves.

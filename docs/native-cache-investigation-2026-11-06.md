@@ -131,3 +131,24 @@ the previous APK certificate. The build verifies that package, the signer SHA-25
 and a version code above `34236209` before publishing its APK artifact.
 The update workflow retains manual dispatch only. Main and the previous
 source-only branch are unchanged.
+
+## Completed approved build
+
+GitHub Actions run https://github.com/maccabluu/BluSwitch2/actions/runs/42225415066
+succeeded for commit `38917904f5e151316218974713d911687d8a4c21`. The log confirms
+compilation of `vk_pipeline_cache.cpp.o` and `BUILD SUCCESSFUL`. All native patch
+checks, existing regression checks, APK signing verification and package/version
+checks passed. The one-off build-request workflow and marker were removed after
+completion, leaving the normal manual-only workflow in place.
+
+The downloaded APK was independently checked against the previous APK:
+- Package: `dev.eden.nx2.debug`, unchanged.
+- Version code: `34236530`, increased from `34236209`.
+- Label: `BluSwitch 2 Debug`.
+- SHA-256 signing certificate matches the previous APK.
+- ZIP CRC validation passed and the native library is AArch64 ELF.
+- The new cache-failure message is present in the compiled native library and
+  absent from the previous library, confirming the native patch reached the APK.
+- APK SHA-256: `e6cdb92f869f1c349758d61c66194ad7b9f092188106370f368333055cf640c1`.
+
+No device installation or Thor Pro FPS/loading-time benchmark was performed.
