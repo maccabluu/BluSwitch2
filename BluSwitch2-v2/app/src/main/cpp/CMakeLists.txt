@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(bluswitch_v2_core LANGUAGES CXX)
+add_library(bluswitch_v2_core SHARED native_core.cpp)
+target_compile_features(bluswitch_v2_core PRIVATE cxx_std_17)
+target_compile_options(bluswitch_v2_core PRIVATE -Wall -Wextra -Werror)
