@@ -56,6 +56,7 @@ function card(g) {
  '<div class="game-label">'+safe(g.title)+'</div>'+
  '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Play</button>'+
  '<button class="game-check" aria-label="Check game boot for '+safe(g.title)+'" onclick="BluSwitch.diagnose('+g.index+')">Check boot</button>'+
+  '<button class="game-cover-button" aria-label="Set cover image for '+safe(g.title)+'" onclick="BluSwitch.chooseCover('+g.index+')">▣</button>'+
  '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button></article>';
 }
 function library(showFavorites) {
@@ -78,6 +79,7 @@ function library(showFavorites) {
  '<h1>'+safe(featured.title)+'</h1><p>Your next game is ready.</p>'+
  '<div class="console-hero-actions"><button class="primary-btn play-feature" onclick="BluSwitch.play('+featured.index+')">▶ Play now</button>'+
  '<button class="secondary-btn" onclick="BluSwitch.getCovers()">Get covers</button>'+
+ '<button class="secondary-btn" onclick="BluSwitch.chooseCover('+featured.index+')">Set cover</button>'+
  '<button class="secondary-btn" onclick="BluSwitch.open(\'files\')">Manage games</button></div></div>'+
  '<div class="console-hero-count">'+items.length+' GAMES</div></div>'+
  '<div class="carousel-meta"><span>'+
@@ -236,6 +238,7 @@ window.BluSwitch = {
   if(node)node.textContent=coverNote;
  },
  getCovers:function(){coverNote='Looking up covers...';render();nativeCall('requestCovers');},
+ chooseCover:function(index){nativeCall('pickGameCover',index);},
  showError:function(message) { error=message;busy=false;render(); },
  refresh:function(){ busy=true;render();nativeCall('requestGames'); },
  play:function(index){nativeCall('launchGame',index);},
