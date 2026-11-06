@@ -69,7 +69,7 @@ window.BluSwitch.setGames(JSON.stringify([{index:0,title:'Pokopia',favorite:fals
 window.BluSwitch.open('home');
 assert(nodes['main-view'].innerHTML.includes('Check boot'),'Missing visible boot check for game');
 assert(nodes['main-view'].innerHTML.includes('Add Switch 2 game'),'Extracted game folder launcher must stay visible when library has games');
-assert(nodes['main-view'].innerHTML.includes('Eden launches games directly'),'Library must describe direct Eden gameplay');
+assert(nodes['main-view'].innerHTML.includes('press Play on its cover'),'Library must describe direct Eden gameplay');
 assert(nodes['dock'].innerHTML.includes('Favourites'), 'Use the newer seven-tab BluSwitch2 dock');
 assert(!nodes['dock'].innerHTML.includes('Store'), 'Keep the newer compact launcher dock');
 assert(!nodes['main-view'].innerHTML.includes('Prepare game'), 'Do not expose Banana Native preparation in Eden');
