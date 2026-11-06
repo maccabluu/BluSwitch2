@@ -1,6 +1,11 @@
 name: BluSwitch Unified | one Android app
-# Manual-only: never start a full engine build on source pushes.
+# One user-authorised unified app build. Restore manual-only after run starts.
 on:
+  push:
+    branches:
+      - bluswitch2-v2-independent
+    paths:
+      - 'BluSwitch2-v2/.authorised-unified-build'
   workflow_dispatch:
 
 concurrency:
@@ -30,6 +35,19 @@ jobs:
         run: node scripts/verify-branding-controller.cjs
       - name: Verify native profile and app renaming using fixtures
         run: python3 scripts/verify-branding-fixtures.py
+      - name: Check original ARM64 CPU, ELF loader and game tests
+        run: |
+          set -euo pipefail
+          cd BluSwitch2-v2
+          for suite in engine_core elf_loader game_demo; do
+            case "$suite" in
+              engine_core) sources="app/src/main/cpp/engine_core.cpp" ;;
+              elf_loader) sources="app/src/main/cpp/engine_core.cpp app/src/main/cpp/elf_loader.cpp" ;;
+              game_demo) sources="app/src/main/cpp/engine_core.cpp app/src/main/cpp/game_demo.cpp" ;;
+            esac
+            g++ -std=c++17 -O2 -Wall -Wextra -Werror $sources tests/test_"$suite".cpp -o /tmp/bluswitch-"$suite"
+            /tmp/bluswitch-"$suite"
+          done
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
