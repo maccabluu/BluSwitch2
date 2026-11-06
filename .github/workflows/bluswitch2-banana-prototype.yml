@@ -152,6 +152,28 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/output"
           cp out/nxnative-android-bluswitchpack.apk "$GITHUB_WORKSPACE/output/BluSwitch2.apk"
           (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2.apk > SHA256SUMS.txt)
+      - name: Sign BluSwitch2 for broad Android installer compatibility
+        env:
+          NX_SIGN_ALIAS: ${{ secrets.BLUSWITCH2_KEY_ALIAS }}
+          NX_SIGN_PASS: ${{ secrets.BLUSWITCH2_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/output/BluSwitch2.apk"
+          SIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$SIGNER" sign \\
+            --ks "$RUNNER_TEMP/bluswitch2-release.jks" \\
+            --ks-type PKCS12 \\
+            --ks-key-alias "$NX_SIGN_ALIAS" \\
+            --ks-pass env:NX_SIGN_PASS \\
+            --key-pass env:NX_SIGN_PASS \\
+            --v1-signing-enabled true \\
+            --v2-signing-enabled true \\
+            --v3-signing-enabled true \\
+            --v4-signing-enabled false \\
+            --out "$GITHUB_WORKSPACE/output/BluSwitch2-all-schemes.apk" \\
+            "$APK"
+          mv "$GITHUB_WORKSPACE/output/BluSwitch2-all-schemes.apk" "$APK"
+          (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2.apk > SHA256SUMS.txt)
       - name: Verify APK install compatibility, signing and alignment
         run: |
           set -euo pipefail
