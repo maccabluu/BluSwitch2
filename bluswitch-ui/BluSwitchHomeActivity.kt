@@ -245,6 +245,53 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
     }
 
+    private var pendingCoverPath: String? = null
+    private val customCoverPicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            val selectedPath = pendingCoverPath
+            pendingCoverPath = null
+            if (uri != null && selectedPath != null) {
+                io.execute {
+                    val game = currentGames.firstOrNull { it.path == selectedPath }
+                    if (game == null || closing) return@execute
+                    try {
+                        val stream = contentResolver.openInputStream(uri)
+                            ?: throw IllegalArgumentException("Selected image is unavailable")
+                        val bytes = stream.use { input ->
+                            val output = java.io.ByteArrayOutputStream()
+                            val chunk = ByteArray(8192)
+                            while (true) {
+                                val count = input.read(chunk)
+                                if (count < 0) break
+                                if (count == 0) continue
+                                if (output.size() + count > 6_000_000) {
+                                    throw IllegalArgumentException("Choose a cover image under 6 MB")
+                                }
+                                output.write(chunk, 0, count)
+                            }
+                            output.toByteArray()
+                        }
+                        val art = artwork.import(game, bytes)
+                            ?: throw IllegalArgumentException("This image cannot be used as a cover")
+                        coverCache.put(game.path, art)
+                        val index = currentGames.indexOfFirst { it.path == selectedPath }
+                        if (index >= 0) notifyUi("setCover",
+                            JSONObject().put("index", index).put("art", art).toString())
+                        notifyUi("onCoversComplete", "Your custom game cover was saved.")
+                    } catch (ex: Exception) {
+                        notifyUi("onCoversComplete",
+                            ex.message ?: "Could not save this cover image.")
+                    }
+                }
+            }
+        }
+
+    private fun chooseGameCover(index: Int) {
+        val game = currentGames.getOrNull(index) ?: return
+        pendingCoverPath = game.path
+        customCoverPicker.launch(arrayOf("image/*"))
+    }
+
     private val prodKeysPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) io.execute { importProdKeys(uri) }
@@ -788,6 +835,9 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
         @JavascriptInterface fun requestFileStatus() { handler.post { refreshStatus(includeFileDetails = true) } }
         @JavascriptInterface fun requestCovers() { handler.post { requestCoverDownload() } }
+        @JavascriptInterface fun pickGameCover(index: Int) {
+            handler.post { if (!closing) chooseGameCover(index) }
+        }
         @JavascriptInterface fun openSetting(id: String) {
             handler.post { if (!closing) settingsActions.open(id) }
         }
