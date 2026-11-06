@@ -41,6 +41,10 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private lateinit var browser: WebView
     private val handler = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
+    // Never download box art on the native game or library scan threads.
+    private val coverWorker = Executors.newSingleThreadExecutor()
+    private val artwork by lazy { BluCoverArt(applicationContext) }
+    private val coverDownloadActive = java.util.concurrent.atomic.AtomicBoolean(false)
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
     @Volatile private var nativeGameLaunching = false
@@ -389,10 +393,10 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshStatus() {
+    private fun refreshStatus(includeFileDetails: Boolean = false) {
         if (closing || nativeGameLaunching) return
         if (!DirectoryInitialization.areDirectoriesReady) {
-            handler.postDelayed({ refreshStatus() }, 400)
+            handler.postDelayed({ refreshStatus(includeFileDetails) }, 400)
             return
         }
         if (!statusScanActive.compareAndSet(false, true)) return
@@ -416,7 +420,9 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                         catch (_: Exception) { "Game file" })
                     val available = try { file?.exists() == true } catch (_: Exception) { false }
                     item.put("available", available)
-                    if (available) {
+                    // Full NSP/XCI inspection is expensive on SD cards. Only
+                    // inspect when the user opens Files, never on home startup.
+                    if (available && includeFileDetails) {
                         val details = SwitchContainerInspector.inspect(this, fileUri)
                         item.put("format", details.optString("format", "Unknown"))
                         item.put("structure", details.optString("structure", "Not checked"))
@@ -500,7 +506,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         // The WebView already requests a scan on first load. Reuse the list
         // on return from a game instead of scanning every mounted game again.
         if (currentGames.isEmpty()) handler.postDelayed({ refreshGames() }, 400)
-        handler.postDelayed({ refreshStatus() }, 500)
+        // File integrity inspection is requested from the Files screen only.
     }
 
     private fun notifyUi(method: String, payload: String) {
@@ -510,6 +516,38 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 "window.BluSwitch && window.BluSwitch." + method + "(" +
                     JSONObject.quote(payload) + ");", null
             )
+        }
+    }
+
+    private fun requestCoverDownload() {
+        if (closing || nativeGameLaunching || !coverDownloadActive.compareAndSet(false, true)) return
+        val selection = currentGames.take(32).toList()
+        if (selection.isEmpty()) {
+            coverDownloadActive.set(false)
+            notifyUi("onCoversComplete", "Add your games first to download covers.")
+            return
+        }
+        notifyUi("onCoversComplete", "Looking up matching game covers...")
+        coverWorker.execute {
+            try {
+                val count = artwork.download(selection, { closing || nativeGameLaunching }) { game, art ->
+                    coverCache.put(game.path, art)
+                    val actualIndex = currentGames.indexOfFirst { it.path == game.path }
+                    if (actualIndex >= 0) {
+                        val update = JSONObject()
+                            .put("index", actualIndex)
+                            .put("art", art)
+                        notifyUi("setCover", update.toString())
+                    }
+                }
+                if (!closing && !nativeGameLaunching) notifyUi("onCoversComplete",
+                    if (count > 0) "$count game cover(s) saved for offline use."
+                    else "No new matching covers found. Switch 2 titles may not be in GameTDB yet.")
+            } catch (ex: Exception) {
+                if (!closing) notifyUi("onCoversComplete", "Covers unavailable. Try again when online.")
+            } finally {
+                coverDownloadActive.set(false)
+            }
         }
     }
 
@@ -571,18 +609,25 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     item.put("index", position)
                     item.put("title", game.title)
                     item.put("favorite", favorites.contains(game.path))
+                    item.put("lastPlayed", PreferenceManager.getDefaultSharedPreferences(this)
+                        .getLong(game.keyLastPlayedTime, 0L))
                     if (position < 32) {
                         try {
                             var art = coverCache.get(game.path)
+                            // Real box art saved from GameTDB takes priority over
+                            // the small square icon embedded in game metadata.
+                            if (art == null) art = artwork.cached(game)
                             if (art == null) {
                                 val icon = GameMetadata.getIcon(game.path)
                                 if (icon.isNotEmpty() && icon.size < 350000) {
                                     art = "data:image/png;base64," +
                                         Base64.encodeToString(icon, Base64.NO_WRAP)
-                                    coverCache.put(game.path, art)
                                 }
                             }
-                            if (art != null) item.put("art", art)
+                            if (art != null) {
+                                coverCache.put(game.path, art)
+                                item.put("art", art)
+                            }
                         } catch (_: Exception) { }
                     }
                     results.put(item)
@@ -741,6 +786,8 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
         @JavascriptInterface fun pickProdKeys() { handler.post { prodKeysPicker.launch(arrayOf("*/*")) } }
         @JavascriptInterface fun requestStatus() { handler.post { refreshStatus() } }
+        @JavascriptInterface fun requestFileStatus() { handler.post { refreshStatus(includeFileDetails = true) } }
+        @JavascriptInterface fun requestCovers() { handler.post { requestCoverDownload() } }
         @JavascriptInterface fun openSetting(id: String) {
             handler.post { if (!closing) settingsActions.open(id) }
         }
@@ -779,6 +826,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         closing = true
         settingsActions.close()
         io.shutdownNow()
+        coverWorker.shutdownNow()
         browser.removeJavascriptInterface("BluNative")
         browser.destroy()
         super.onDestroy()
