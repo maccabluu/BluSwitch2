@@ -7,6 +7,7 @@ on:
       - 'bluswitch-ui/**'
       - 'bluswitch-native/**'
       - 'scripts/port-banana-ui.py'
+      - 'scripts/port-pokopia-v327680.py'
   workflow_dispatch:
 
 permissions:
@@ -24,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify BluSwitch2 frontend patch syntax
         run: |
-          python3 -m py_compile scripts/port-banana-ui.py
+          python3 -m py_compile scripts/port-banana-ui.py scripts/port-pokopia-v327680.py
           node scripts/verify-navigation.cjs
       - name: Check preinstalled Android native build tools
         run: |
@@ -75,6 +76,19 @@ jobs:
           test -f banana-source/android/ondevice/build.sh
           test -f banana-source/android/NOTICE.md
           echo "Pinned Pokopia native engine sources verified"
+      - name: Enable experimental Pokopia v327680 profile
+        run: |
+          set -euo pipefail
+          python3 scripts/port-pokopia-v327680.py banana-source
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("banana-source/dm/games/0400A3A01EE4C000/game.tsv").read_text()
+          assert "build\tv327680\tv327680\tmain=816c5358e8178d802fcec4a7ce5a741a" in p
+          assert "romfs_marker\tmotor_asset_re/KIDS_PLATFORM_OUNCE/0x38f972af.fdata" in p
+          assert "package\tv327680" in p
+          assert "build\tv655360" not in p
+          print("Verified exact game version and build ID from user screenshot")
+          PY
       - name: Apply BluSwitch2 blue native frontend
         run: |
           set -euo pipefail
@@ -112,19 +126,19 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon \
             -PnxGames=0400A3A01EE4C000 \
-            -PnxApp=bluswitchpack \
+            -PnxApp=bluswitchv327680 \
             -PnxLabel="BluSwitch2" \
-            -PnxVersion="0.2.1-bluswitch-prepare" \
+            -PnxVersion="0.2.2-pokopia-327680-alpha" \
             -PnxPackStage="$RUNNER_TEMP/bluswitch-native-packer/stage" \
             apk
-          test -s out/nxnative-android-bluswitchpack.apk
+          test -s out/nxnative-android-bluswitchv327680.apk
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp out/nxnative-android-bluswitchpack.apk "$GITHUB_WORKSPACE/output/BluSwitch2-Native-Prepare.apk"
-          (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2-Native-Prepare.apk > SHA256SUMS.txt)
+          cp out/nxnative-android-bluswitchv327680.apk "$GITHUB_WORKSPACE/output/BluSwitch2-Pokopia-327680-Experimental.apk"
+          (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2-Pokopia-327680-Experimental.apk > SHA256SUMS.txt)
       - name: Upload native prototype if build succeeds
         uses: actions/upload-artifact@v4
         with:
-          name: BluSwitch2-Native-Prepare-Android
+          name: BluSwitch2-Pokopia-327680-Experimental-Android
           path: output/
           if-no-files-found: error
           retention-days: 14
