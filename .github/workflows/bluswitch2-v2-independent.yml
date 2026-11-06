@@ -1,6 +1,11 @@
 name: BluSwitch 2.0 independent prototype
-# Manual runs only. No automatic APK builds.
+# Single user-authorised build trigger, restore manual-only after run starts.
 on:
+  push:
+    branches:
+      - bluswitch2-v2-independent
+    paths:
+      - 'BluSwitch2-v2/.build-authorised-treasurehunt'
   workflow_dispatch:
 
 permissions:
