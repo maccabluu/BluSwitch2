@@ -63,6 +63,16 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                                 NativeConfig.saveGlobalConfig() // Persist across EmulationActivity.reloadGlobalConfig()
                                 notifyUi("onAction", "Game folder added to BluSwitch 2.")
                             }
+                            // One Add folder action should work for both regular Eden
+                            // library games and decrypted loose ExeFS games.
+                            // Persist any extracted games the native helper recognises,
+                            // then show them in BluSwitch's normal Library.
+                            val localPath = PathUtil.getPathFromUri(uri)
+                            if (localPath != null && File(localPath).isDirectory) {
+                                if (GameHelper.findExeFSGames(File(localPath)).isNotEmpty()) {
+                                    rememberExtractedFolder(uri)
+                                }
+                            }
                             refreshStatus()
                             refreshGames()
                         } catch (ex: Exception) {
