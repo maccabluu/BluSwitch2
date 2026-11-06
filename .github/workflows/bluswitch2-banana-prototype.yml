@@ -152,6 +152,14 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/output"
           cp out/nxnative-android-bluswitchpack.apk "$GITHUB_WORKSPACE/output/BluSwitch2.apk"
           (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2.apk > SHA256SUMS.txt)
+      - name: Verify APK install compatibility, signing and alignment
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/output/BluSwitch2.apk"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/zipalign" -c -p 4 "$APK"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -E '^(package:|sdkVersion:|targetSdkVersion:|native-code:|application-label:)' 
       - name: Upload the ONE BluSwitch2 update if build succeeds
         uses: actions/upload-artifact@v4
         with:
