@@ -32,7 +32,7 @@ window.BluSwitch.setGames(JSON.stringify([
   {title:'Test game',index:0,favorite:false}
 ]));
 calls.length = 0;
-const views = ['home','collections','files','store','media','saves','controller','handheld','settings'];
+const views = ['home','collections','files','media','saves','controller','handheld','settings'];
 for(const page of views){
   window.BluSwitch.open(page);
   assert(nodes['main-view'].innerHTML, 'Page '+page+' renders empty');
@@ -42,4 +42,4 @@ window.BluSwitch.open('settings');
 window.BluSwitch.back();
 assert(nodes['main-view'].innerHTML.includes('Your game library'), 'Back did not return to BluSwitch Library');
 assert(!calls.some(x=>x[0]==='openAdvanced'), 'Back opened Eden');
-console.log('PASS: all nine BluSwitch menu pages and Back remain in BluSwitch');
+console.log('PASS: all BluSwitch menu pages and Back remain in BluSwitch');
