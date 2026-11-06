@@ -26,10 +26,21 @@ jobs:
         run: |
           python3 -m py_compile scripts/port-banana-ui.py
           node scripts/verify-navigation.cjs
-      - name: Install Android native build tools
+      - name: Check preinstalled Android native build tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends zsh ninja-build cmake curl unzip perl git clang pkg-config
+          set -euo pipefail
+          missing=()
+          for command in zsh ninja cmake curl unzip perl git clang pkg-config; do
+            if ! command -v "$command" >/dev/null 2>&1; then
+              if [ "$command" = ninja ]; then missing+=(ninja-build); else missing+=("$command"); fi
+            fi
+          done
+          if (( ${#missing[@]} )); then
+            echo "Missing tools: ${missing[*]}"
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+          else
+            echo "All required build tools are preinstalled"
+          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
