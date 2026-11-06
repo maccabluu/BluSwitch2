@@ -22,6 +22,25 @@ assert(kt.includes('takePersistableUriPermission'), 'Picked game files must reta
 assert(/findExeFSGames\(File\(path\)\)[\s\S]{0,1100}NativeConfig\.addGameDir\(GameDir\(uri\.toString\(\), true\)\)[\s\S]{0,90}NativeConfig\.saveGlobalConfig\(\)/.test(kt),
   'Launch extracted game must persist valid folder before starting it');
 assert(kt.includes('bluswitch_imported_games'), 'Individual files need durable preferences');
+assert(kt.includes('bluswitch_extracted_folders'), 'Eden loose game folder imports need durable preferences');
+assert(kt.includes('private fun rememberExtractedFolder(uri: android.net.Uri)'), 'Directly launched games must be remembered');
+assert(kt.includes('val looseGames = GameHelper.findExeFSGames(File(localPath))') && kt.includes('if (looseGames.isNotEmpty())'), 'Add game folder must detect playable loose ExeFS games');
+assert(kt.includes('extractedFolderUris().forEach { savedUri ->'), 'Library refresh must rescan remembered native ExeFS folders');
+assert(kt.includes('if (found.none { it.path == candidate.path }) found.add(candidate)'), 'Reimporting loose games must avoid duplicate covers');
+assert(kt.includes('remembered.remove(removed.uriString)'), 'Removing a folder must not re-add it on the next refresh');
+assert(kt.includes('nativeGameLaunching = true'), 'Starting Eden must suspend background launcher scans');
+assert(kt.includes('if (closing || nativeGameLaunching) return@execute'), 'In-flight library scans must not compete with native startup');
+assert(kt.includes('extractedFolderGameCache[savedUri]'), 'Loose game folders should reuse discovered game metadata');
+assert(kt.includes('GameMetadata.getIcon(game.path)'), 'Covers must still be fetched');
+assert(kt.includes('coverCache.get(game.path)') && kt.includes('coverCache.put(game.path, art)'), 'Game covers should be reused on subsequent refreshes');
+assert(kt.includes('refreshGames(forceRescan = true)'), 'Manual Refresh must recheck changed game files');
+assert(kt.includes('gameScanActive.compareAndSet(false, true)'), 'Do not run duplicate native game scans during boot');
+assert(kt.includes('statusScanActive.compareAndSet(false, true)'), 'Do not run duplicate content inspections during boot');
+assert(kt.includes('if (currentGames.isEmpty()) handler.postDelayed({ refreshGames() }, 400)'), 'Do not rescan existing games every time gameplay returns');
+assert(kt.includes('if (forceRescan) rescanRequested = true'), 'Explicit Refresh must not be dropped when a scan is running');
+assert(kt.includes('if (rescanRequested && !closing && !nativeGameLaunching)'), 'Manual refreshes must be honoured when active scan completes');
+
+
 assert(kt.includes('GameHelper.getGame(uri, true)'), 'Saved individual files must be rescanned on resume');
 assert(kt.includes('fun pickGameFile()'), 'Single game picker bridge missing');
 assert(kt.includes('private fun diagnoseGame(index: Int)'), 'Game boot diagnostic missing');
@@ -61,8 +80,11 @@ assert(html.includes('Add game file'),'There must be a separate game file picker
 window.BluSwitch.setGames(JSON.stringify([{index:0,title:'Pokopia',favorite:false}]));
 window.BluSwitch.open('home');
 assert(nodes['main-view'].innerHTML.includes('Check boot'),'Missing visible boot check for game');
-assert(nodes['main-view'].innerHTML.includes('Folder · Launch Switch 2 game'),'Extracted game folder launcher must stay visible when library has games');
-assert(nodes['main-view'].innerHTML.includes('Use this folder'),'Show Eden-style extracted game folder instructions');
+assert(nodes['main-view'].innerHTML.includes('Add Switch 2 game'),'Extracted game folder launcher must stay visible when library has games');
+assert(nodes['main-view'].innerHTML.includes('press Play on its cover'),'Library must describe direct Eden gameplay');
+assert(nodes['dock'].innerHTML.includes('Favourites'), 'Use the newer seven-tab BluSwitch2 dock');
+assert(!nodes['dock'].innerHTML.includes('Store'), 'Keep the newer compact launcher dock');
+assert(!nodes['main-view'].innerHTML.includes('Prepare game'), 'Do not expose Banana Native preparation in Eden');
 window.BluSwitch.launchExeFSFolder();
 assert(events.some(([name])=>name==='launchExeFSFolder'),'Extracted game folder button must call native folder picker');
 window.BluSwitch.diagnose(0);

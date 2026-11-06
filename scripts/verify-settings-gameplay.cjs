@@ -44,7 +44,12 @@ assert(invocations.some(([k,v])=>k==='browseUserFiles' && v===''), 'BluSwitch da
 assert(!invocations.some(([k,v])=>k==='openSetting' && v==='data-folder'), 'Open BluSwitch folder must never launch external Eden DocumentsUI');
 window.BluSettings.select('folders');
 assert(nodes['main-view'].innerHTML.includes('Game files'), 'Game folders did not open Files');
-assert(nodes['main-view'].innerHTML.includes('Folder · Launch Switch 2 game'), 'Loose game launch missing');
+assert(nodes['main-view'].innerHTML.includes('Add Switch 2 game'), 'Loose game launch missing');
 window.BluSwitch.launchExeFSFolder();
 assert(invocations.some(([k])=>k==='launchExeFSFolder'), 'ExeFS launcher not connected to native picker');
+assert(!nodes['main-view'].innerHTML.includes('Homebrew Store'), 'Deleted shop must be absent from Files');
+assert(!js.includes('BluStore') && !home.includes('downloadHomebrew'), 'Deleted shop functionality must stay removed');
+window.BluSwitch.open('store');
+assert(nodes['main-view'].innerHTML.includes('Your game library'), 'Deleted shop route should safely return to Library');
+window.BluSwitch.open('files');
 console.log('PASS settings native actions, UI routes, real ExeFS launcher and no Eden home redirects');

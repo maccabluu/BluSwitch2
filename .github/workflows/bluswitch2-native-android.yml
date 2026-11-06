@@ -1,30 +1,5 @@
 name: BluSwitch 2 Native Android
 on:
-  push:
-    branches:
-      - main
-      - bluswitch2-original-ui
-      - bluswitch2-ingame-library-persistence
-      - bluswitch2-core-repair-isolated
-      - bluswitch2-container-loader-research
-      - bluswitch2-settings-hub
-      - bluswitch2-remove-eden-controller
-    paths:
-      - 'bluswitch-ui/**'
-      - 'scripts/apply-ui.py'
-      - 'scripts/verify-navigation.cjs'
-      - 'scripts/verify-bluswitch-folder.cjs'
-      - 'scripts/verify-emulation-library.cjs'
-      - 'scripts/verify-container-inspector.cjs'
-      - 'scripts/brand-ingame.py'
-      - 'scripts/fix-gamehelper.py'
-      - 'scripts/fix-eden-launch-args.py'
-      - 'scripts/brand-settings.py'
-      - 'scripts/verify-settings-gameplay.cjs'
-      - 'scripts/rebrand-visible.py'
-      - 'scripts/verify-branding-controller.cjs'
-      - 'scripts/verify-branding-fixtures.py'
-      - '.github/workflows/bluswitch2-native-android.yml'
   workflow_dispatch:
 
 concurrency:
@@ -58,6 +33,26 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      # Eden is pinned to nx2-android-v0.3.2 below. Reuse Gradle
+      # dependencies across UI-only changes instead of downloading them again.
+      - name: Restore Eden Gradle dependency cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper
+          key: eden-nx2-v0.3.2-gradle-${{ runner.os }}-v1
+      # Each successful run saves native C/C++ compilation results. Subsequent
+      # builds restore the latest available entries, recompiling only changes.
+      # Cache keys are versioned with the pinned native engine and NDK.
+      - name: Restore Eden native compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: eden-nx2-v0.3.2-ndk28-ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            eden-nx2-v0.3.2-ndk28-ccache-${{ runner.os }}-${{ github.ref_name }}-
+            eden-nx2-v0.3.2-ndk28-ccache-${{ runner.os }}-
       - name: Free runner storage and install shader tools
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/share/powershell /opt/hostedtoolcache/CodeQL
@@ -194,10 +189,20 @@ jobs:
           set -euo pipefail
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export CMAKE_BUILD_PARALLEL_LEVEL=2
+          export CCACHE_DIR="$HOME/.cache/ccache"
+          export CCACHE_BASEDIR="$GITHUB_WORKSPACE/nx2-source"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_NOHASHDIR=true
+          mkdir -p "$CCACHE_DIR"
+          ccache --max-size=900M
+          ccache --zero-stats
           cd nx2-source/src/android
           chmod +x gradlew
           printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > local.properties
-          ./gradlew --no-daemon --no-parallel --max-workers=2 -PYUZU_ANDROID_ARGS="-DGLSLANGVALIDATOR=$(command -v glslangValidator)" :app:assembleMainlineDebug 2>&1 | tee "$GITHUB_WORKSPACE/compile.log"
+          # CMake reuses cached native C/C++ objects; Gradle still repackages
+          # the changed BluSwitch2 UI and Java/Kotlin code into one signed APK.
+          ./gradlew --no-daemon --no-parallel --max-workers=2 -PYUZU_ANDROID_ARGS="-DGLSLANGVALIDATOR=$(command -v glslangValidator) -DCMAKE_C_COMPILER_LAUNCHER=$(command -v ccache) -DCMAKE_CXX_COMPILER_LAUNCHER=$(command -v ccache)" :app:assembleMainlineDebug 2>&1 | tee "$GITHUB_WORKSPACE/compile.log"
+          ccache --show-stats
       - name: Confirm APK contains native emulator libraries
         run: |
           python3 - <<'PY'

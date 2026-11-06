@@ -1,15 +1,14 @@
 (function () {
 'use strict';
 var games = [], current = 'home', error = '', busy = true;
+// Seven-tab launcher from the newer BluSwitch2 design.
+// Native gameplay is still handled directly by Eden, never Banana Prepare.
 var nav = [
   ['home','Library','gamepad','#9838ee'],
-  ['collections','Collections','layers','#ff8b00'],
+  ['collections','Favourites','layers','#ff8b00'],
   ['files','Files','folder','#efa900'],
-  ['store','Store','bag','#f13b67'],
-  ['media','Media','media','#1686f8'],
   ['saves','Saves','bookmark','#00b9ac'],
   ['controller','Controller','gamepad','#335ff8'],
-  ['handheld','Handheld Mode','handheld','#8235e8'],
   ['settings','Settings','settings','#57647d'],
   ['power','Power','power','#526582']
 ];
@@ -50,7 +49,7 @@ function card(g) {
  var art = g.art ? '<img class="cover" src="'+g.art+'" alt=""/>' : '<div class="blank-art">B</div>';
  return '<article class="game-card">'+art+
  '<div class="game-label">'+safe(g.title)+'</div>'+
- '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Open</button>'+
+ '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Play</button>'+
  '<button class="game-check" aria-label="Check game boot for '+safe(g.title)+'" onclick="BluSwitch.diagnose('+g.index+')">Check boot</button>'+
  '<button class="favorite-star '+(g.favorite?'active':'')+'" onclick="BluSwitch.favorite('+g.index+')" aria-label="Toggle favourite for '+safe(g.title)+'">'+(g.favorite?'★':'☆')+'</button></article>';
 }
@@ -61,15 +60,15 @@ function library(showFavorites) {
     'Choose the star on a game cover to add it to Favourites.' :
     'No games found yet. Add your own game folder to start.';
   return '<div class="empty-home"><h2>'+(showFavorites?'Your favourites':'Your game library')+'</h2><p>'+msg+'</p><div class="action-row" style="justify-content:center">'+
-   '<button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Folder · Launch Switch 2 game</button>'+'<button class="primary-btn" onclick="BluSwitch.addFolder()">Add game folder</button>'+
+   '<button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Add Switch 2 game</button>'+'<button class="primary-btn" onclick="BluSwitch.addFolder()">Add game folder</button>'+
    '<button class="secondary-btn" onclick="BluSwitch.addGameFile()">Add game file</button>'+
    '<button class="secondary-btn" onclick="BluSwitch.refresh()">Refresh library</button></div></div>';
  }
  return '<section class="carousel-panel"><div class="carousel-meta"><span>'+
  (showFavorites?'Your favourites':'Your game library')+' · '+items.length+' '+(items.length===1?'game':'games')+
  '</span><div><button onclick="BluSwitch.refresh()">Refresh</button><button onclick="BluSwitch.addFolder()">+ Add game folder</button></div></div>'+
- '<div class="bluswitch-quicklaunch"><button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Folder · Launch Switch 2 game</button>'+
- '<span>Like Eden: choose your extracted game version folder containing <strong>exefs</strong> and <strong>romfs</strong>, then tap <strong>Use this folder</strong>. Do not choose the ZIP.</span></div>'+
+ '<div class="bluswitch-quicklaunch"><button class="primary-btn" onclick="BluSwitch.launchExeFSFolder()">Add Switch 2 game</button>'+
+ '<span>Choose a compatible game folder, then press Play on its cover.</span></div>'+
  '<div class="game-strip" aria-label="Your games">'+items.map(card).join('')+'</div></section>';
 }
 var status = {keys:false, firmware:false, folders:[], files:[], ready:false};
@@ -96,13 +95,13 @@ function renderFiles() {
  }).join('')+'</div>' : '<p class="notice">No individual game files selected.</p>';
  var storage=status.ready ? (status.allFiles?'Loose ExeFS folder access enabled.':'Loose ExeFS folders may need Android All files access.') : '';
  return '<section class="screen-panel"><h1>Game files</h1>'+
-  '<p class="notice">For a Switch 2 game, open the extracted game folder, then base or updates / numbered version, until you see exefs and romfs. Tap Use this folder. Do not choose a ZIP archive.</p>'+
+  '<p class="notice">Choose a compatible game folder or file. Supported titles launch using Eden.</p>'+
   '<p class="notice">Your selected folders and game files are kept when you close a game. Only files recognised by the emulator appear in Library.</p>'+
   '<h2>Game folders</h2>'+folderList+
   '<h2>Individual game files</h2>'+fileList+
-  '<div class="action-row">'+actionButton('Folder · Launch Switch 2 game','launchExeFSFolder')+actionButton('Add game folder','addFolder')+
+  '<div class="action-row">'+actionButton('Add Switch 2 game','launchExeFSFolder')+actionButton('Add game folder','addFolder')+
   actionButton('Add game file','addGameFile')+actionButton('Refresh library','refresh',true)+
-  (!status.allFiles?actionButton('Enable ExeFS access','enableStorage',true):'')+
+  (!status.allFiles?actionButton('Enable game folder access','enableStorage',true):'')+
   '</div><p class="notice">'+safe(storage)+'</p></section>';
 }
 
@@ -160,7 +159,6 @@ function render() {
  else if(current==='files')view.innerHTML=renderFiles();
  else if(current==='user-files')view.innerHTML=renderUserFiles();
  else if(current==='settings')view.innerHTML=renderSettings();
- else if(current==='store')view.innerHTML=window.BluStore ? window.BluStore.render() : section('Homebrew Store','Homebrew catalogue unavailable.','');
  else if(current==='media')view.innerHTML=section('Media','Media capture management is not available yet. This screen is part of BluSwitch 2 and will not open another emulator.',actionButton('Back to library','home'));
  else if(current==='saves')view.innerHTML=section('Saves','The emulator stores game saves in its app data. Save browsing and backup controls are not available in this version.',actionButton('Back to library','home'));
  else if(current==='controller')view.innerHTML=renderController();
@@ -199,8 +197,6 @@ window.BluSwitch = {
   nativeCall('previewUserFile',entry.path);
  },
  closeUserPreview:function(){userFiles.preview=null;render();},
- isStoreOpen:function(){return current==='store';},
- setStoreCatalog:function(json){if(window.BluStore)window.BluStore.receive(json);},
  setGames:function(json) {
   try { games=JSON.parse(json); busy=false; error=''; render(); }
   catch(e) {this.showError('Could not load your game list.');}
@@ -236,7 +232,9 @@ window.BluSwitch = {
   if(id==='power'){
    if(confirm('Exit BluSwitch 2?'))nativeCall('exit');return;
   }
-  current=id;render();
+  var internalScreens=['media','handheld','user-files'];
+  current=nav.some(function(item){return item[0]===id;}) || internalScreens.indexOf(id)>=0 ? id : 'home';
+  render();
  }
 };
 document.addEventListener('DOMContentLoaded',function(){
