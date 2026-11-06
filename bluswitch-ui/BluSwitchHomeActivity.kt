@@ -43,6 +43,13 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private val io = Executors.newSingleThreadExecutor()
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
+    @Volatile private var nativeGameLaunching = false
+    // Avoid expensive repeated ExeFS directory scans and cover decoding.
+    // Both caches are only used on the serial library worker.
+    private val extractedFolderGameCache = mutableMapOf<String, List<Game>>()
+    private val coverCache = object : android.util.LruCache<String, String>(8 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: String): Int = value.length * 2
+    }
     private val settingsActions = BluSettingsActions(this) { showUserFolder() }
 
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
@@ -69,8 +76,10 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                             // then show them in BluSwitch's normal Library.
                             val localPath = PathUtil.getPathFromUri(uri)
                             if (localPath != null && File(localPath).isDirectory) {
-                                if (GameHelper.findExeFSGames(File(localPath)).isNotEmpty()) {
+                                val looseGames = GameHelper.findExeFSGames(File(localPath))
+                                if (looseGames.isNotEmpty()) {
                                     rememberExtractedFolder(uri)
+                                    extractedFolderGameCache[uri.toString()] = looseGames
                                 }
                             }
                             refreshStatus()
@@ -169,7 +178,10 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
         io.execute {
             try {
-                val games = GameHelper.findExeFSGames(File(path))
+                val games = extractedFolderGameCache[uri.toString()]
+                    ?: GameHelper.findExeFSGames(File(path)).also {
+                        extractedFolderGameCache[uri.toString()] = it
+                    }
                 // Remember successfully recognised extracted Switch 2 game folders,
                 // so they remain in the library after gameplay and a full restart.
                 if (games.isNotEmpty()) {
@@ -209,12 +221,19 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     }
 
     private fun startNativeGame(game: Game) {
+        nativeGameLaunching = true
         val settings = PreferenceManager.getDefaultSharedPreferences(this)
         settings.edit().putLong(game.keyLastPlayedTime, System.currentTimeMillis()).apply()
-        // Launch using the upstream Eden Android entrypoint, not a duplicated
-        // Intent contract. Eden supplies EXTRA_SELECTED_GAME ("SelectedGame")
-        // and keeps the original native game renderer, controller and menu.
-        EmulationActivity.launch(this, game)
+        // Let the native emulator start without competing with BluSwitch's
+        // folder scans or cover decoding. Eden keeps its own shader caches.
+        try {
+            EmulationActivity.launch(this, game)
+        } catch (ex: Exception) {
+            nativeGameLaunching = false
+            AlertDialog.Builder(this).setTitle("Game could not start")
+                .setMessage(ex.message ?: "Native launcher failed")
+                .setPositiveButton("OK", null).show()
+        }
     }
 
     private val prodKeysPicker =
@@ -422,6 +441,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                 if (remembered.remove(removed.uriString)) {
                     prefs.edit().putStringSet("uris", remembered).apply()
                 }
+                extractedFolderGameCache.remove(removed.uriString)
                 notifyUi("onAction", "Game folder removed from library. Files were not deleted.")
                 refreshStatus()
                 refreshGames()
@@ -467,6 +487,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        nativeGameLaunching = false
         handler.postDelayed({ refreshGames() }, 400)
         handler.postDelayed({ refreshStatus() }, 500)
     }
@@ -481,13 +502,14 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshGames() {
-        if (closing) return
+    private fun refreshGames(forceRescan: Boolean = false) {
+        if (closing || nativeGameLaunching) return
         if (!DirectoryInitialization.areDirectoriesReady) {
-            handler.postDelayed({ refreshGames() }, 300)
+            handler.postDelayed({ refreshGames(forceRescan) }, 300)
             return
         }
         io.execute {
+            if (closing || nativeGameLaunching) return@execute
             try {
                 val found = GameHelper.getGames().toMutableList()
                 // Extracted Switch 2 games are launched by the native ExeFS
@@ -498,7 +520,12 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     try {
                         val path = PathUtil.getPathFromUri(android.net.Uri.parse(savedUri))
                         if (path != null && File(path).isDirectory) {
-                            GameHelper.findExeFSGames(File(path)).forEach { candidate ->
+                            val looseGames = if (forceRescan) null else extractedFolderGameCache[savedUri]
+                            val candidates = looseGames
+                                ?: GameHelper.findExeFSGames(File(path)).also {
+                                    extractedFolderGameCache[savedUri] = it
+                                }
+                            candidates.forEach { candidate ->
                                 if (found.none { it.path == candidate.path }) found.add(candidate)
                             }
                         }
@@ -519,6 +546,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                         }
                     } catch (_: Exception) { /* Retain saved selection for later retry */ }
                 }
+                if (closing || nativeGameLaunching) return@execute
                 currentGames = found
                 val favorites = getSharedPreferences("bluswitch_home", MODE_PRIVATE)
                     .getStringSet("favorites", emptySet()) ?: emptySet()
@@ -530,16 +558,21 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     item.put("favorite", favorites.contains(game.path))
                     if (position < 32) {
                         try {
-                            val icon = GameMetadata.getIcon(game.path)
-                            if (icon.isNotEmpty() && icon.size < 350000) {
-                                item.put("art", "data:image/png;base64," +
-                                    Base64.encodeToString(icon, Base64.NO_WRAP))
+                            var art = coverCache.get(game.path)
+                            if (art == null) {
+                                val icon = GameMetadata.getIcon(game.path)
+                                if (icon.isNotEmpty() && icon.size < 350000) {
+                                    art = "data:image/png;base64," +
+                                        Base64.encodeToString(icon, Base64.NO_WRAP)
+                                    coverCache.put(game.path, art)
+                                }
                             }
+                            if (art != null) item.put("art", art)
                         } catch (_: Exception) { }
                     }
                     results.put(item)
                 }
-                notifyUi("setGames", results.toString())
+                if (!nativeGameLaunching) notifyUi("setGames", results.toString())
             } catch (ex: Exception) {
                 notifyUi("showError", ex.message ?: "Unable to scan games")
             }
@@ -642,10 +675,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
             return
         }
         val run = {
-            val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-            prefs.edit().putLong(game.keyLastPlayedTime, System.currentTimeMillis()).apply()
-            // Native core expects EXTRA_SELECTED_GAME ("SelectedGame"), not "game".
-            // Use the upstream launcher so the actual game reaches EmulationFragment.
+            // startNativeGame records the time once and calls the Eden launcher.
             startNativeGame(game)
         }
         if (NativeLibrary.gameRequiresFirmware(game.programId) &&
@@ -674,7 +704,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         @JavascriptInterface fun previewUserFile(path: String) {
             handler.post { this@BluSwitchHomeActivity.previewUserFile(path) }
         }
-        @JavascriptInterface fun requestGames() { handler.post { refreshGames() } }
+        @JavascriptInterface fun requestGames() { handler.post { refreshGames(forceRescan = true) } }
         @JavascriptInterface fun launchGame(index: Int) { handler.post { launch(index) } }
         @JavascriptInterface fun diagnoseGame(index: Int) { handler.post { this@BluSwitchHomeActivity.diagnoseGame(index) } }
         @JavascriptInterface fun favorite(index: Int) { handler.post { toggleFavorite(index) } }
