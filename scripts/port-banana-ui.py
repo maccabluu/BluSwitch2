@@ -48,6 +48,16 @@ replace_once(
 replace_once(
     "'<button class=\"game-check\" aria-label=\"Check game boot for '+safe(g.title)+'\" onclick=\"BluSwitch.diagnose('+g.index+')\">Check boot</button>'+",
     "'<button class=\"game-check\" aria-label=\"Manage '+safe(g.title)+'\" onclick=\"BluSwitch.diagnose('+g.index+')\">Manage</button>'+")
+# Show the real preparation state on the game tile and never mislabel an
+# unsupported title as ready. The full card remains clickable: the bridge
+# routes unprepared games to native Prepare, not the native runtime.
+badge = """ '<span class="game-prep-state '+(g.ready?'ready':g.preparable?'needs-prep':'unsupported')+'">'+safe(g.status||'Needs preparing')+'</span>'+ """
+before_badge = """ '<button class="game-check" aria-label="Manage '+safe(g.title)+'" onclick="BluSwitch.diagnose('+g.index+')">Manage</button>'+ """
+assert js.count(before_badge) == 1
+js = js.replace(before_badge, badge + before_badge, 1)
+# Put Prepare above the cover button on the page and leave Manage accessible.
+js = js.replace(before_badge,
+    """ (g.preparable&&!g.ready?'<button class="game-prep-button" onclick="BluSwitch.prepare('+g.index+')">Prepare game</button>':'')+ """ + before_badge, 1)
 js = js.replace("Folder · Launch Switch 2 game", "Add Switch 2 game")
 js = js.replace("Like Eden: choose your extracted game version folder containing <strong>exefs</strong> and <strong>romfs</strong>, then tap <strong>Use this folder</strong>. Do not choose the ZIP.",
                 "Select your extracted game dump containing <strong>base/exefs</strong> and <strong>base/romfs</strong>, or add a supported <strong>.nup</strong> file. BluSwitch2 prepares a game before playing.")
@@ -100,6 +110,36 @@ js = js.replace(needle, """ controlSetting:function(id){nativeCall('openSetting'
  saveRestore:function(index){nativeCall('saveRestore',index)},""", 1)
 # A native preparation may take time, so refresh game status without losing the view.
 js = js.replace(" nativeCall('requestStatus');\n});", " nativeCall('requestStatus');\n setInterval(function(){nativeCall('requestGames');nativeCall('requestStatus');},10000);\n});", 1)
+# Display the real job progress and let the user pause/resume without
+# opening the invisible old native home screen behind the new WebView.
+prep_renderer = """function renderPreparation() {
+ var p=status.preparation;
+ if(!p || (p.state==='done'&&p.packCreated))return '';
+ var percent=Math.max(0,Math.min(100,Number(p.percent)||0));
+ var busy=p.state==='running';
+ var label=busy?'Preparing game':p.state==='failed'?'Preparation failed':p.state==='paused'?'Preparation paused':p.state==='done'?'Checking finished pack':'Game preparation';
+ var control=(p.state==='running'||p.state==='paused'||p.state==='failed'||p.state==='pending')?
+    '<button class="secondary-btn" onclick="BluSwitch.controlPreparation(\\''+(busy?'pause':'resume')+'\\')">'+(busy?'Pause':'Resume preparation')+'</button>':'';
+ return '<section class="blu-preparation" aria-live="polite"><div class="blu-prep-head"><strong>'+safe(label+': '+(p.name||'Game'))+
+  '</strong><span>'+percent+'%</span></div><progress max="100" value="'+percent+'"></progress>'+
+  '<p>'+safe(p.error||p.step||'Preparing your game files')+'</p>'+
+  '<p>Shaders: '+safe(p.shadersDone||0)+' / '+safe(p.shadersTotal||0)+'</p>'+
+  '<div class="action-row">'+control+'</div></section>';
+}
+"""
+assert js.count("function library(showFavorites) {") == 1
+js = js.replace("function library(showFavorites) {", prep_renderer + "\nfunction library(showFavorites) {", 1)
+assert js.count("return '<div class=\"empty-home\">") == 1
+js = js.replace("return '<div class=\"empty-home\">", "return renderPreparation()+'<div class=\"empty-home\">", 1)
+assert js.count("return '<section class=\"carousel-panel\">") == 1
+js = js.replace("return '<section class=\"carousel-panel\">", "return renderPreparation()+'<section class=\"carousel-panel\">", 1)
+needle = " play:function(index){nativeCall('launchGame',index);},"
+assert needle in js
+js = js.replace(needle, needle + """
+ prepare:function(index){nativeCall('prepareGame',index);},
+ controlPreparation:function(action){nativeCall('controlPreparation',action);},
+""", 1)
+# No fake pack.tsv: only the native DumpCheck/PackService pipeline creates it.
 js_file.write_text(js)
 
 source = java_dir / "MainActivity.java"
@@ -146,6 +186,17 @@ helper = """    // Package-local BluSwitch2 actions use the original engine's ow
     void bluRemove(Game game) { confirmRemove(game); }
     void bluPickNup() { if (!needAccess()) pickNup(); }
     void bluStorageAccess() { openAccessSettings(); }
+    void bluPrepareGame(Game game) {
+        if (needAccess()) return;
+        String unsupported = Profile.missing(game.titleId, game.name);
+        if (unsupported != null) { error(unsupported); return; }
+        File dump = new File(game.gameDir);
+        if (!Ondevice.isDump(dump)) {
+            error("Cannot create pack.tsv from this game file. Choose the full extracted game folder containing base/ and updates/, or a supported .nup. The native engine also needs a matching game version.");
+            return;
+        }
+        Ondevice.prepare(this, dump, false);
+    }
     void bluOpenSetting(String id) {
         switch (id) {
             case "gpu": GpuDriver.dialog(this, PICK_DRIVER); break;
@@ -171,6 +222,22 @@ helper = """    // Package-local BluSwitch2 actions use the original engine's ow
 """
 patch("    void error(String msg) {", helper + "    void error(String msg) {", "Native settings adapters")
 source.write_text(text)
+
+# Let the blue Prepare panel control the real on-device preparation service.
+ondevice = app / "src/ondevice/java/dev/nxnative/android/Ondevice.java"
+od = ondevice.read_text()
+old_control = """    static void prepare(MainActivity a, File dump, boolean again) { if (panel != null && panel.a == a) panel.picked(dump, false, null, again); }"""
+new_control = old_control + """
+    static void control(MainActivity a, boolean pause) {
+        if (panel == null || panel.a != a || panel.job == null) {
+            a.error("No game preparation is active. Add a supported game first.");
+            return;
+        }
+        if (pause) panel.pauseJob("bluswitch");
+        else if (!a.needAccess()) panel.startService(panel.job);
+    }"""
+assert od.count(old_control) == 1, "Banana Native preparation API has changed"
+ondevice.write_text(od.replace(old_control, new_control, 1))
 
 # Map physical A/B/X/Y, shoulders and Start/Select before they reach the host.
 # The native host still chooses player slots and handles analogue axes itself.
