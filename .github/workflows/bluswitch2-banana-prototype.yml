@@ -101,19 +101,19 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon \
             -PnxGames=0400A3A01EE4C000 \
-            -PnxApp=bluswitchcontrols \
+            -PnxApp=bluswitchpack \
             -PnxLabel="BluSwitch2" \
-            -PnxVersion="0.2.0-bluswitch-native" \
+            -PnxVersion="0.2.1-bluswitch-prepare" \
             -PnxPackStage="$RUNNER_TEMP/bluswitch-native-packer/stage" \
             apk
-          test -s out/nxnative-android-bluswitchcontrols.apk
+          test -s out/nxnative-android-bluswitchpack.apk
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp out/nxnative-android-bluswitchcontrols.apk "$GITHUB_WORKSPACE/output/BluSwitch2-Original-Icon-Controls.apk"
-          (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2-Original-Icon-Controls.apk > SHA256SUMS.txt)
+          cp out/nxnative-android-bluswitchpack.apk "$GITHUB_WORKSPACE/output/BluSwitch2-Native-Prepare.apk"
+          (cd "$GITHUB_WORKSPACE/output" && sha256sum BluSwitch2-Native-Prepare.apk > SHA256SUMS.txt)
       - name: Upload native prototype if build succeeds
         uses: actions/upload-artifact@v4
         with:
-          name: BluSwitch2-Original-Icon-Controls-Android
+          name: BluSwitch2-Native-Prepare-Android
           path: output/
           if-no-files-found: error
           retention-days: 14
