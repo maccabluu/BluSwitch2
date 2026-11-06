@@ -119,3 +119,34 @@ button:focus-visible,.game-card:focus-visible{outline:3px solid #1098ff;outline-
 .bluswitch-quicklaunch{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 13px;padding:10px 12px;background:#eaf5ff;border:1px solid #acd6ff;border-radius:14px}
 .bluswitch-quicklaunch .primary-btn{flex:0 0 auto}
 .bluswitch-quicklaunch span{flex:1 1 230px;font-size:12px;color:#183968;line-height:1.4}
+
+/* BluSwitch console library update: gamepad-first launcher, not a second app. */
+.console-home{gap:clamp(3px,.75vh,8px);justify-content:flex-start;padding-top:2px}
+.console-hero{position:relative;display:flex;align-items:center;gap:clamp(11px,2vw,25px);width:100%;height:clamp(105px,23vh,200px);flex:0 0 auto;padding:clamp(9px,1.6vh,17px) clamp(12px,2.4vw,26px);border-radius:21px;background:radial-gradient(circle at 85% 0%,#176df365,transparent 42%),linear-gradient(115deg,#07183b,#0d327b 56%,#0b52b5);color:#fff;box-shadow:0 14px 30px #0b337135;overflow:hidden}
+.console-hero-art{width:clamp(76px,13vw,135px);height:100%;flex:0 0 auto;border-radius:12px;overflow:hidden;background:linear-gradient(135deg,#0e74a5,#072555);box-shadow:0 5px 15px #020e2470}
+.console-hero-art img{width:100%;height:100%;object-fit:contain}
+.console-hero-art .blank-art{height:100%;display:grid;place-items:center;font-size:34px;font-weight:900;color:#d0edff}
+.console-hero-content{display:flex;flex-direction:column;justify-content:center;gap:clamp(4px,1vh,9px);min-width:0;flex:1}
+.console-eyebrow{font-size:clamp(9px,1.5vh,12px);font-weight:800;letter-spacing:1.5px;color:#75d8ff}
+.console-hero-content h1{font-size:clamp(18px,3.7vh,35px);line-height:1.08;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.console-hero-content p{font-size:clamp(10px,1.7vh,13px);color:#c5ddff;margin:0}
+.console-hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:clamp(5px,.9vw,11px);margin-top:2px}
+.console-hero-actions button{padding:clamp(5px,1.1vh,11px) clamp(9px,1.6vw,17px);box-shadow:none}
+.console-hero-actions .play-feature{background:#29bcff;color:#052153}
+.console-hero-actions .secondary-btn{background:#ffffff23;color:#fff;border:1px solid #ffffff43}
+.console-hero-count{position:absolute;right:13px;top:9px;font-size:10px;letter-spacing:1.5px;color:#85c7ff;font-weight:800}
+.console-home .carousel-meta{margin:0 4px;min-height:21px}
+.console-home .game-strip{flex:1;min-height:75px;padding:4px 4px 9px;align-items:stretch;scroll-behavior:smooth}
+.console-home .game-card{width:clamp(90px,15vw,184px);height:auto;max-height:100%;min-height:95px;border-radius:15px;scroll-snap-align:start;box-shadow:0 6px 16px #05346b24}
+.console-home .game-card .cover{height:100%;width:100%;object-fit:contain;background:linear-gradient(140deg,#315e9f,#101d3c)}
+.console-home .game-card .blank-art{height:100%;background:linear-gradient(150deg,#123e8c,#04132e);color:#d5ebff;letter-spacing:1px;font-size:clamp(30px,6vh,55px)}
+.console-home .game-card .game-label{font-size:clamp(10px,1.75vh,14px);padding-top:30px}
+.console-home .game-card:focus-within{border-color:#2acbff;box-shadow:0 0 0 3px #2acbff88,0 7px 18px #083d9470}
+.console-feedback{min-height:17px;color:#336394;font-size:clamp(9px,1.4vh,12px);padding:0 5px}
+@media(max-height:460px){
+ .console-hero{height:clamp(91px,25vh,122px);gap:10px;padding:7px 11px}
+ .console-hero-content p{display:none}
+ .console-hero-content h1{font-size:18px}
+ .console-hero-actions button{padding:5px 9px;font-size:11px}
+ .console-home .game-card{min-height:70px}
+}
