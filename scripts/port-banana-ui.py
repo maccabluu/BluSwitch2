@@ -24,6 +24,8 @@ assets.mkdir(parents=True, exist_ok=True)
 
 shutil.copyfile(repo / "bluswitch-native/BluSwitchNativeUi.java",
                 java_dir / "BluSwitchNativeUi.java")
+shutil.copyfile(repo / "bluswitch-native/BluSwitchControllerSettings.java",
+                java_dir / "BluSwitchControllerSettings.java")
 for name in ("index.html", "app.css", "app.js"):
     shutil.copyfile(repo / "bluswitch-ui" / name, assets / name)
 shutil.copyfile(repo / "bluswitch-native/settings-hub.js",
@@ -76,10 +78,18 @@ js = js.replace(" renderDock();\n", " renderDock();\n", 1)
 start = js.index("function renderController() {")
 end = js.index("function renderSaves()", start)
 js = js[:start] + """function renderController() {
- return '<section class="screen-panel"><h1>Controller</h1>'+
-  '<p class="notice">BluSwitch2 supports Android gamepads and touchscreen input using the native engine. Button remapping is not yet built in.</p>'+
-  '<div class="action-row">'+actionButton('On-screen overlay','overlay')+
-  actionButton('Input support','controls',true)+'</div></section>';
+ var buttons=[
+  ['button-mapping','Button mapping','Choose what each physical controller button does'],
+  ['player-one','Player 1 controls','View connected gamepads and configure their buttons'],
+  ['player-two','Player 2 controls','Set up a second connected gamepad'],
+  ['input-overlay','On-screen controls','Show buttons, change their size, opacity and vibration']
+ ];
+ return '<section class="screen-panel blu-controller-hub"><h1>Controller</h1>'+
+  '<p class="notice">Physical gamepads and native touch controls for BluSwitch2. Changes are saved for your next game.</p>'+
+  '<div class="blu-controller-grid">'+buttons.map(function(item){
+    return '<button class="blu-controller-tile" type="button" onclick="BluSwitch.controlSetting(&quot;'+item[0]+'&quot;)">'+
+      '<strong>'+safe(item[1])+'</strong><small>'+safe(item[2])+'</small><span aria-hidden="true">›</span></button>';
+  }).join('')+'</div></section>';
 }
 
 """ + js[end:]
@@ -148,7 +158,11 @@ helper = """    // Package-local BluSwitch2 actions use the original engine's ow
             case "fps": fpsCap(); break;
             case "framegen": frameGen(); break;
             case "overlay": overlayItems(); break;
-            case "controls": error("Bluetooth and USB gamepads use Android native input. Button remapping has not been added to this engine yet."); break;
+            case "button-mapping": BluSwitchControllerSettings.buttonMapping(this); break;
+            case "player-one": BluSwitchControllerSettings.player(this, 1); break;
+            case "player-two": BluSwitchControllerSettings.player(this, 2); break;
+            case "input-overlay": BluSwitchControllerSettings.touchControls(this); break;
+            case "controls": BluSwitchControllerSettings.buttonMapping(this); break;
             case "about": error("BluSwitch2 Native Preview. Built using nxnative / Banana Native source. See open-source licence notices and the GitHub source."); break;
             default: error("This setting has not been connected yet.");
         }
@@ -157,6 +171,15 @@ helper = """    // Package-local BluSwitch2 actions use the original engine's ow
 """
 patch("    void error(String msg) {", helper + "    void error(String msg) {", "Native settings adapters")
 source.write_text(text)
+
+# Map physical A/B/X/Y, shoulders and Start/Select before they reach the host.
+# The native host still chooses player slots and handles analogue axes itself.
+game_file = java_dir / "GameActivity.java"
+game_code = game_file.read_text()
+before_key = 'Native.key(e.getDeviceId(), e.getKeyCode(), e.getAction() == KeyEvent.ACTION_DOWN)'
+after_key = 'Native.key(e.getDeviceId(), BluSwitchControllerSettings.mapKey(this, e), e.getAction() == KeyEvent.ACTION_DOWN)'
+assert game_code.count(before_key) == 1, "GameActivity native input dispatch changed"
+game_file.write_text(game_code.replace(before_key, after_key, 1))
 
 # A fresh launcher identity without touching users' previous Eden saves.
 icon_dir = app / "src/main/res/drawable"
