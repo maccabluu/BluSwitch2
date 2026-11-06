@@ -112,6 +112,17 @@ internal class BluCoverArt(context: Context) {
         } finally { source.recycle() }
     }
 
+    // User-selected images work for Switch 2 titles not listed by GameTDB.
+    // Imported art is stored in the same permanent app-private cover folder.
+    fun import(game: Game, bytes: ByteArray): String? {
+        if (bytes.size !in 100..6_000_000) return null
+        val compressed = compressCover(bytes) ?: return null
+        return try {
+            file(game).writeBytes(compressed)
+            cached(game)
+        } catch (_: Exception) { null }
+    }
+
     fun download(
         games: List<Game>,
         cancelled: () -> Boolean,
