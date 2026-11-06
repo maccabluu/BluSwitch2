@@ -28,6 +28,12 @@ assert(kt.includes('if (GameHelper.findExeFSGames(File(localPath)).isNotEmpty())
 assert(kt.includes('extractedFolderUris().forEach { savedUri ->'), 'Library refresh must rescan remembered native ExeFS folders');
 assert(kt.includes('if (found.none { it.path == candidate.path }) found.add(candidate)'), 'Reimporting loose games must avoid duplicate covers');
 assert(kt.includes('remembered.remove(removed.uriString)'), 'Removing a folder must not re-add it on the next refresh');
+assert(kt.includes('nativeGameLaunching = true'), 'Starting Eden must suspend background launcher scans');
+assert(kt.includes('if (closing || nativeGameLaunching) return@execute'), 'In-flight library scans must not compete with native startup');
+assert(kt.includes('extractedFolderGameCache[savedUri]'), 'Loose game folders should reuse discovered game metadata');
+assert(kt.includes('GameMetadata.getIcon(game.path)'), 'Covers must still be fetched');
+assert(kt.includes('coverCache.get(game.path)') && kt.includes('coverCache.put(game.path, art)'), 'Game covers should be reused on subsequent refreshes');
+assert(kt.includes('refreshGames(forceRescan = true)'), 'Manual Refresh must recheck changed game files');
 
 assert(kt.includes('GameHelper.getGame(uri, true)'), 'Saved individual files must be rescanned on resume');
 assert(kt.includes('fun pickGameFile()'), 'Single game picker bridge missing');
