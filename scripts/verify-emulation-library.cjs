@@ -32,6 +32,23 @@ assert(kt.includes('nativeGameLaunching = true'), 'Starting Eden must suspend ba
 assert(kt.includes('if (closing || nativeGameLaunching) return@execute'), 'In-flight library scans must not compete with native startup');
 assert(kt.includes('extractedFolderGameCache[savedUri]'), 'Loose game folders should reuse discovered game metadata');
 assert(kt.includes('GameMetadata.getIcon(game.path)'), 'Covers must still be fetched');
+const coverSource=fs.readFileSync('bluswitch-ui/BluCoverArt.kt','utf8');
+const overlaySource=fs.readFileSync('scripts/apply-ui.py','utf8');
+assert(overlaySource.includes('BluCoverArt.kt'),'Cover retrieval must be shipped inside the same APK');
+assert(kt.includes('artwork.cached(game)'),'Previously downloaded covers must survive app restarts');
+assert(kt.includes('fun requestCovers()') && kt.includes('fun pickGameCover(index: Int)'),
+ 'Games must support internet and manual cover selection');
+assert(coverSource.includes('switchtdb.txt?LANG=EN') && coverSource.includes('coverM/'),
+ 'Optional Get covers action must match GameTDB title IDs');
+assert(coverSource.includes('fun import(game: Game, bytes: ByteArray)'),
+ 'Users must be able to set artwork for Switch 2 games');
+assert(js.includes('Get covers') && js.includes('Set cover') && js.includes('console-hero'),
+ 'Console UI must expose real cover actions and featured play');
+assert(kt.includes('if (available && includeFileDetails)'),
+ 'Do not inspect every imported game file during home startup');
+assert(workflow.includes('on:\n  workflow_dispatch:') && !workflow.includes('  push:'),
+ 'BluSwitch2 source changes must never trigger automatic APK rebuilds');
+
 assert(kt.includes('coverCache.get(game.path)') && kt.includes('coverCache.put(game.path, art)'), 'Game covers should be reused on subsequent refreshes');
 assert(kt.includes('refreshGames(forceRescan = true)'), 'Manual Refresh must recheck changed game files');
 assert(kt.includes('gameScanActive.compareAndSet(false, true)'), 'Do not run duplicate native game scans during boot');
