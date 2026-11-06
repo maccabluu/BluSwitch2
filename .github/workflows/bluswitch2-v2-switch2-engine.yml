@@ -1,0 +1,213 @@
+name: BluSwitch 2.0 | experimental Switch 2 engine (isolated)
+# One user-authorised push build. Revert to manual-only after first run starts.
+on:
+  push:
+    branches:
+      - bluswitch2-v2-independent
+    paths:
+      - 'BluSwitch2-v2/.authorised-switch2-build'
+  workflow_dispatch:
+
+concurrency:
+  group: bluswitch-v2-switch2-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify BluSwitch navigation never opens Eden
+        run: node scripts/verify-navigation.cjs
+      - name: Verify BluSwitch folder never opens Eden-labelled file manager
+        run: node scripts/verify-bluswitch-folder.cjs
+      - name: Verify native game launching and import persistence
+        run: node scripts/verify-emulation-library.cjs
+      - name: Verify NSP and XCI archive inspector wiring
+        run: node scripts/verify-container-inspector.cjs
+      - name: Verify real settings handlers and extracted game launch
+        run: node scripts/verify-settings-gameplay.cjs
+      - name: Verify BluSwitch Controller tab and branding
+        run: node scripts/verify-branding-controller.cjs
+      - name: Verify native profile and app renaming using fixtures
+        run: python3 scripts/verify-branding-fixtures.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Free runner storage and install shader tools
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/share/powershell /opt/hostedtoolcache/CodeQL
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends glslang-tools ninja-build python3 pkg-config ccache
+          glslangValidator --version
+      - name: Install Android SDK command-line tools
+        run: |
+          set -euo pipefail
+          SDK="$RUNNER_TEMP/bluswitch-android-sdk"
+          mkdir -p "$SDK/cmdline-tools"
+          curl -fL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/android-tools.zip" https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip
+          echo "4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583  $RUNNER_TEMP/android-tools.zip" | sha256sum --check -
+          unzip -q "$RUNNER_TEMP/android-tools.zip" -d "$SDK/cmdline-tools"
+          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" --version
+      - name: Install SDK, NDK and CMake
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses > /dev/null || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.31.5" "platform-tools"
+          test -d "$ANDROID_HOME/ndk/28.2.13676358"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Fetch GPL-licensed Switch 2 Android engine
+        run: |
+          set -euo pipefail
+          # The upstream Git server sometimes resets long clone connections.
+          # Retry a fresh shallow clone rather than failing the entire APK build.
+          for attempt in 1 2 3 4 5; do
+            rm -rf nx2-source
+            if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch nx2-android-v0.3.2 \
+              https://git.eden-emu.dev/moceure/eden-nx2-android.git nx2-source; then
+              if (cd nx2-source && git -c http.version=HTTP/1.1 submodule update --init --recursive --depth 1); then
+                test -f nx2-source/src/android/app/build.gradle.kts
+                break
+              fi
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo "::error::Failed to fetch experimental upstream Switch 2 engine after 5 attempts"
+              exit 1
+            fi
+            echo "::warning::Upstream clone interrupted; retrying attempt $((attempt + 1))"
+            sleep $((attempt * 10))
+          done
+      - name: Verify Eden native game launch contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          upstream = Path("nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/activities/EmulationActivity.kt").read_text()
+          assert 'const val EXTRA_SELECTED_GAME = "SelectedGame"' in upstream, "Eden selected-game extra changed"
+          assert 'fun launch(activity: AppCompatActivity, game: Game)' in upstream, "Eden game launch helper changed"
+          assert 'launcher.putExtra(EXTRA_SELECTED_GAME, game)' in upstream, "Eden launch helper no longer passes the selected game"
+          custom = Path("bluswitch-ui/BluSwitchHomeActivity.kt").read_text()
+          assert "EmulationActivity.launch(this, game)" in custom, "BluSwitch must use Eden's official launch helper"
+          print("Native Eden game-launch contract verified before Android build")
+          PY
+      - name: Fix Eden's missing native game argument on first launch
+        run: |
+          set -euo pipefail
+          python3 scripts/fix-eden-launch-args.py nx2-source
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path("nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/activities/EmulationActivity.kt").read_text()
+          frag = Path("nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/fragments/EmulationFragment.kt").read_text()
+          assert 'launcher.putExtra(EXTRA_SELECTED_GAME, game)' in src
+          assert 'launcher.putExtra("game", game)' in src
+          assert 'val gameToUse = args.game ?: intentGame' in frag
+          print("First-boot SelectedGame and game navigation arguments verified")
+          PY
+      - name: Apply independent BluSwitch 2.0 app identity
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, xml.etree.ElementTree as ET
+          root = Path('nx2-source/src/android/app')
+          gradle = root / 'build.gradle.kts'
+          g = gradle.read_text()
+          g, n = re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"', lambda m:m.group(1)+'"com.blustudio.bluswitch2.v2"',g,count=1)
+          assert n == 1, "Upstream Gradle app ID layout changed"
+          g = re.sub(r'(appNameBase"\s+to\s+)"Eden(?: [^"]*)?"', lambda m:m.group(1)+'"BluSwitch 2"',g)
+          g = g.replace('"Eden$suffix"','"BluSwitch 2.0$suffix"')
+          gradle.write_text(g)
+          strings = root / 'src/main/res/values/strings.xml'
+          s = strings.read_text()
+          s, n = re.subn(r'(<string\s+name="app_name"[^>]*>)(.*?)(</string>)',lambda m:m.group(1)+'BluSwitch 2.0'+m.group(3),s,count=1,flags=re.S)
+          assert n == 1, "Upstream strings layout changed"
+          ET.fromstring(s)
+          strings.write_text(s)
+          manifest = root / 'src/main/AndroidManifest.xml'
+          m = manifest.read_text()
+          assert 'android:icon="@mipmap/ic_launcher"' in m
+          m = m.replace('android:icon="@mipmap/ic_launcher"','android:icon="@drawable/bluswitch_icon"',1)
+          m = m.replace('android:roundIcon="@mipmap/ic_launcher_round"','android:roundIcon="@drawable/bluswitch_icon"',1)
+          manifest.write_text(m)
+          drawable = root / 'src/main/res/drawable'
+          drawable.mkdir(parents=True,exist_ok=True)
+          (drawable/'bluswitch_icon.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#09245C" android:pathData="M54,0 A54,54 0,1 1,54 108 A54,54 0,1 1,54 0"/>
+              <path android:fillColor="#1CD1FF" android:pathData="M31,24 L56,24 C72,24 81,32 79,43 C77,52 65,57 51,61 L30,69 L30,57 L53,48 C63,44 67,42 67,38 C67,33 61,33 54,33 L31,33 Z"/>
+              <path android:fillColor="#387BFF" android:pathData="M76,46 C86,58 78,73 60,79 L29,88 L29,76 L56,68 C67,64 71,59 67,55 Z"/>
+          </vector>''')
+          print('Applied BluSwitch 2.0 package, name and icon; upstream engine and licences preserved')
+          PY
+      - name: Integrate original BluSwitch 2 home UI
+        run: |
+          python3 scripts/apply-ui.py nx2-source
+          python3 scripts/brand-ingame.py nx2-source
+          python3 scripts/brand-settings.py nx2-source
+          python3 scripts/rebrand-visible.py nx2-source
+          python3 scripts/fix-gamehelper.py nx2-source
+          test -f nx2-source/src/android/app/src/main/res/values/bluswitch_ingame_colors.xml
+          test -f nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/ui/main/BluSwitchHomeActivity.kt
+          test -f nx2-source/src/android/app/src/main/assets/bluswitch/index.html
+      - name: Provide SDL3 Android Java bindings before Kotlin compilation
+        run: |
+          set -euo pipefail
+          # Eden's native CMake config generates these during a later task, but
+          # Kotlin imports org.libsdl.app.SDL earlier in the Gradle task graph.
+          # Use official SDL3 release Java bindings as a build prerequisite.
+          git clone --depth 1 --branch release-3.4.8 https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/sdl3-source"
+          DEST="nx2-source/externals/generated/sdl/java"
+          mkdir -p "$DEST"
+          cp -R "$RUNNER_TEMP/sdl3-source/android-project/app/src/main/java/." "$DEST/"
+          test -s "$DEST/org/libsdl/app/SDL.java"
+          echo "SDL3 Android bindings copied: $(find "$DEST/org/libsdl/app" -name '*.java' | wc -l) Java files"
+      - name: Build ARM64 native Android APK
+        run: |
+          set -euo pipefail
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export CMAKE_BUILD_PARALLEL_LEVEL=2
+          cd nx2-source/src/android
+          chmod +x gradlew
+          printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > local.properties
+          ./gradlew --no-daemon --no-parallel --max-workers=2 -PYUZU_ANDROID_ARGS="-DGLSLANGVALIDATOR=$(command -v glslangValidator)" :app:assembleMainlineDebug 2>&1 | tee "$GITHUB_WORKSPACE/compile.log"
+      - name: Confirm APK contains native emulator libraries
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,shutil,hashlib
+          paths=list(Path('nx2-source/src/android/app/build/outputs/apk').rglob('*.apk'))
+          assert len(paths)>=1,'No APK produced'
+          p=next((p for p in paths if 'mainline' in p.name.lower() or 'mainline' in str(p).lower()),paths[0])
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist()
+              assert 'AndroidManifest.xml' in names
+              assert any(n.startswith('classes') and n.endswith('.dex') for n in names)
+              assert any(n.startswith('lib/arm64-v8a/') and n.endswith('.so') for n in names), 'No ARM64 native libraries in APK'
+          dest=Path('BluSwitch2-v2-Switch2-Experimental-Android.apk')
+          shutil.copy2(p,dest)
+          Path('BluSwitch2-v2-Switch2-Experimental-Android.apk.sha256').write_text(hashlib.sha256(dest.read_bytes()).hexdigest()+'  '+dest.name+'\n')
+          print('Verified native ARM64 libraries in '+str(dest))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: BluSwitch2-v2-Switch2-Experimental-Android
+          path: |
+            BluSwitch2-v2-Switch2-Experimental-Android.apk
+            BluSwitch2-v2-Switch2-Experimental-Android.apk.sha256
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: BluSwitch2-v2-Switch2-Compiler-Log
+          path: compile.log
+          if-no-files-found: ignore

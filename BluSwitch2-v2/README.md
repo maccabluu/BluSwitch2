@@ -60,3 +60,8 @@ Input is validated before mapping. Unsupported formats, overlapping segments, in
 `Play Blu Treasure Hunt` opens a 3×3 treasure game. Direction buttons feed player position and input to a self-authored AArch64 guest program executed by our interpreter. The guest code handles board boundaries, move counts and the winning square at (2,2). Android only displays the board and sends controller input. `tests/test_game_demo.cpp` exercises movement and victory logic using a local native compiler.
 
 This is an original educational game within the emulator, **not** Switch 2 homebrew compatibility or commercial Switch 2 game support. The code is committed to the independent branch, but requires a **separately authorised** APK build before it appears on your AYN Thor Pro. Existing BluSwitch2 installs and saved data are unaffected.
+
+
+## Experimental full Switch 2 game engine
+
+See [integration notes](docs/full-switch2-engine.md) and the independent `.github/workflows/bluswitch2-v2-switch2-engine.yml` workflow. This source-based build uses an experimental GPL-licensed game engine that may attempt to boot supported extracted Switch 2 content. It is distinct from the scratch-built CPU test program, and no individual Switch 2 game is guaranteed to boot or be playable.
