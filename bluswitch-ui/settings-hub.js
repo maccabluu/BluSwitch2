@@ -4,6 +4,9 @@
 'use strict';
 var options=[
  ['readiness','Switch 2 readiness check','Check your AYN Thor, graphics driver, memory and game access','✓'],
+ ['performance','Performance mode','Apply Eden settings for smoother Switch 2 gameplay, with a restore option','⚡'],
+ ['graphics','Graphics settings','Resolution, shader compilation and rendering options','◈'],
+ ['performance-stats','Performance statistics','See FPS and performance during a game','▥'],
  ['advanced','Advanced settings','System, graphics, audio and gameplay options','⚙'],
  ['app','App Settings','Appearance, language and application options','▣'],
  ['profiles','Profile Manager','Add, choose, edit and remove console profiles','◉'],
