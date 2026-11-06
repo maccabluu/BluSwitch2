@@ -46,9 +46,13 @@ function renderDock() {
   return '<button class="dock-item '+(current===n[0]?'active':'')+'" style="--icon-color:'+n[3]+'" onclick="BluSwitch.open(\''+n[0]+'\')" aria-label="'+n[1]+'">'+svg(n[2])+'<span>'+n[1]+'</span></button>';
  }).join('');
 }
+function artwork(g) {
+ if(g.cover) return '<img class="cover" src="'+safe(g.cover)+'" alt="" loading="lazy" decoding="async" onerror="BluSwitch.coverFailed('+g.index+')"/>';
+ if(g.art) return '<img class="cover native-cover" src="'+safe(g.art)+'" alt="" loading="lazy" decoding="async"/>';
+ return '<div class="blank-art"><span class="case-logo">B2</span><span class="case-title">'+safe(g.title)+'</span><span class="case-subtitle">BLUSWITCH 2</span></div>';
+}
 function card(g) {
- var art = g.art ? '<img class="cover" src="'+g.art+'" alt=""/>' : '<div class="blank-art">B</div>';
- return '<article class="game-card">'+art+
+ return '<article class="game-card" data-game-index="'+g.index+'"><div class="art-slot">'+artwork(g)+'</div>'+
  '<div class="game-label">'+safe(g.title)+'</div>'+
  '<button class="game-open" aria-label="Play '+safe(g.title)+'" onclick="BluSwitch.play('+g.index+')">Open</button>'+
  '<button class="game-check" aria-label="Check game boot for '+safe(g.title)+'" onclick="BluSwitch.diagnose('+g.index+')">Check boot</button>'+
@@ -205,6 +209,34 @@ window.BluSwitch = {
   try { games=JSON.parse(json); busy=false; error=''; render(); }
   catch(e) {this.showError('Could not load your game list.');}
  },
+ updateGameArt:function(index){
+  if(typeof document.querySelector !== 'function') return;
+  var g=games.find(function(item){return item.index===index;});
+  var slot=document.querySelector('.game-card[data-game-index="'+index+'"] .art-slot');
+  if(g && slot) slot.innerHTML=artwork(g);
+ },
+ setGameArt:function(json){
+  try{
+   var data=JSON.parse(json);
+   var g=games.find(function(item){return item.index===data.index;});
+   if(!g)return;
+   g.art=data.art;
+   if(!g.cover)this.updateGameArt(data.index);
+  }catch(e){}
+ },
+ coverFailed:function(index){
+  var g=games.find(function(item){return item.index===index;});
+  if(!g)return;
+  g.cover='';
+  this.updateGameArt(index);
+ },
+ setFavorite:function(json){
+  try{
+   var data=JSON.parse(json);
+   var g=games.find(function(item){return item.index===data.index;});
+   if(g){g.favorite=!!data.favorite;render();}
+  }catch(e){}
+ },
  showError:function(message) { error=message;busy=false;render(); },
  refresh:function(){ busy=true;render();nativeCall('requestGames'); },
  play:function(index){nativeCall('launchGame',index);},
@@ -226,7 +258,7 @@ window.BluSwitch = {
  },
  openAction:function(command){if(typeof this[command]==='function')this[command]();else this.open(command);},
  setStatus:function(json){try{status=JSON.parse(json);render();}catch(e){}},
- onAction:function(message){notice=message;alert(message);nativeCall('requestStatus');nativeCall('requestGames');},
+ onAction:function(message){notice=message;alert(message);},
  back:function(){
   if(current === 'user-files'){this.userFolderBack();return;}
   if(current !== 'home') {current='home';render();}

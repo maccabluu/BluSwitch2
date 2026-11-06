@@ -43,6 +43,14 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private val io = Executors.newSingleThreadExecutor()
     @Volatile private var currentGames: List<Game> = emptyList()
     @Volatile private var closing = false
+    private var resumedOnce = false
+    private val scanRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val rescanRequested = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val artworkCache = object : android.util.LruCache<String, String>(12 * 1024) {
+        override fun sizeOf(key: String, value: String) =
+            ((value.length + 1023) / 1024).coerceAtLeast(1)
+    }
+    private val inspectionCache = mutableMapOf<String, Pair<String, JSONObject>>()
     private val settingsActions = BluSettingsActions(this) { showUserFolder() }
 
     // Native Android pickers keep file permissions and remain inside BluSwitch 2.
@@ -89,6 +97,8 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     saved.add(uri.toString())
                     files.edit().putStringSet("uris", saved).apply()
                     notifyUi("onAction", "Game file saved in your BluSwitch 2 library.")
+                    refreshGames()
+                    refreshStatus()
                 } catch (ex: Exception) {
                     notifyUi("onAction", "Could not save game file access: " + (ex.message ?: "Permission denied"))
                 }
@@ -108,6 +118,8 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         getSharedPreferences("bluswitch_imported_games", MODE_PRIVATE)
             .edit().putStringSet("uris", remaining).apply()
         notifyUi("onAction", "Game file removed from the BluSwitch library, not from your device.")
+        refreshGames()
+        refreshStatus()
     }
 
     // Launch loose Switch 2 ExeFS game directories using the native supported path.
@@ -365,7 +377,14 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     val available = try { file?.exists() == true } catch (_: Exception) { false }
                     item.put("available", available)
                     if (available) {
-                        val details = SwitchContainerInspector.inspect(this, fileUri)
+                        val signature = (file?.lastModified() ?: 0L).toString() + ":" +
+                            (file?.length() ?: 0L).toString()
+                        val cached = inspectionCache[path]
+                        val details = if (cached?.first == signature) cached.second else {
+                            SwitchContainerInspector.inspect(this, fileUri).also {
+                                inspectionCache[path] = signature to it
+                            }
+                        }
                         item.put("format", details.optString("format", "Unknown"))
                         item.put("structure", details.optString("structure", "Not checked"))
                         item.put("contents", details.optString("contents", ""))
@@ -434,8 +453,12 @@ class BluSwitchHomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        handler.postDelayed({ refreshGames() }, 400)
-        handler.postDelayed({ refreshStatus() }, 500)
+        // The WebView requests the initial library and status on its first load.
+        if (resumedOnce) {
+            handler.postDelayed({ refreshGames() }, 400)
+            handler.postDelayed({ refreshStatus() }, 500)
+        }
+        resumedOnce = true
     }
 
     private fun notifyUi(method: String, payload: String) {
@@ -451,14 +474,17 @@ class BluSwitchHomeActivity : AppCompatActivity() {
     private fun refreshGames() {
         if (closing) return
         if (!DirectoryInitialization.areDirectoriesReady) {
-            handler.postDelayed({ refreshGames() }, 300)
+            handler.postDelayed({ refreshGames() }, 400)
+            return
+        }
+        if (!scanRunning.compareAndSet(false, true)) {
+            rescanRequested.set(true)
             return
         }
         io.execute {
             try {
                 val found = GameHelper.getGames().toMutableList()
-                // SAF file imports are not part of GameHelper's folder scanner.
-                // Re-add valid selections from persistent storage after every native scan.
+                // SAF imports remain saved across game launches and native scans.
                 importedGameUris().forEach { path ->
                     try {
                         if (found.none { it.path == path }) {
@@ -468,7 +494,7 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                                 if (selected != null) found.add(selected)
                             }
                         }
-                    } catch (_: Exception) { /* Retain saved selection for later retry */ }
+                    } catch (_: Exception) { /* Keep saved selection for retry */ }
                 }
                 currentGames = found
                 val favorites = getSharedPreferences("bluswitch_home", MODE_PRIVATE)
@@ -479,24 +505,41 @@ class BluSwitchHomeActivity : AppCompatActivity() {
                     item.put("index", position)
                     item.put("title", game.title)
                     item.put("favorite", favorites.contains(game.path))
-                    if (position < 32) {
-                        try {
-                            val icon = GameMetadata.getIcon(game.path)
-                            if (icon.isNotEmpty() && icon.size < 350000) {
-                                item.put("art", "data:image/png;base64," +
-                                    Base64.encodeToString(icon, Base64.NO_WRAP))
-                            }
-                        } catch (_: Exception) { }
+                    val titleId = game.programId.toString().uppercase(java.util.Locale.ROOT)
+                    if (titleId.matches(Regex("[0-9A-F]{16}"))) {
+                        item.put("cover", "https://art.gametdb.com/switch/coverM/EN/" +
+                            titleId + ".png")
                     }
+                    val cached = artworkCache.get(game.path)
+                    if (!cached.isNullOrEmpty()) item.put("art", cached)
                     results.put(item)
                 }
+                // Display titles and cached covers before expensive native icon reads.
                 notifyUi("setGames", results.toString())
+                found.take(48).forEachIndexed { position, game ->
+                    if (closing) return@forEachIndexed
+                    if (artworkCache.get(game.path) != null) return@forEachIndexed
+                    try {
+                        val icon = GameMetadata.getIcon(game.path)
+                        val art = if (icon.isNotEmpty() && icon.size < 500000) {
+                            "data:image/png;base64," +
+                                Base64.encodeToString(icon, Base64.NO_WRAP)
+                        } else ""
+                        artworkCache.put(game.path, art)
+                        if (art.isNotEmpty()) {
+                            notifyUi("setGameArt", JSONObject().put("index", position)
+                                .put("art", art).toString())
+                        }
+                    } catch (_: Exception) { artworkCache.put(game.path, "") }
+                }
             } catch (ex: Exception) {
                 notifyUi("showError", ex.message ?: "Unable to scan games")
+            } finally {
+                scanRunning.set(false)
+                if (rescanRequested.getAndSet(false) && !closing) refreshGames()
             }
         }
     }
-
 
     /**
      * Inspect the actual selected file before asking the emulator core to load it.
@@ -612,9 +655,13 @@ class BluSwitchHomeActivity : AppCompatActivity() {
         val game = currentGames.getOrNull(index) ?: return
         val prefs = getSharedPreferences("bluswitch_home", MODE_PRIVATE)
         val favorites = (prefs.getStringSet("favorites", emptySet()) ?: emptySet()).toMutableSet()
-        if (!favorites.add(game.path)) favorites.remove(game.path)
+        val isFavorite = if (favorites.add(game.path)) true else {
+            favorites.remove(game.path)
+            false
+        }
         prefs.edit().putStringSet("favorites", favorites).apply()
-        refreshGames()
+        notifyUi("setFavorite", JSONObject()
+            .put("index", index).put("favorite", isFavorite).toString())
     }
 
 
