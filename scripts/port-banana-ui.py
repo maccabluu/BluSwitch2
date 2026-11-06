@@ -184,6 +184,13 @@ game_file.write_text(game_code.replace(before_key, after_key, 1))
 # A fresh launcher identity without touching users' previous Eden saves.
 icon_dir = app / "src/main/res/drawable"
 shutil.copyfile(repo / "bluswitch-native/ic_bluswitch.xml", icon_dir / "ic_bluswitch.xml")
+shutil.copyfile(repo / "bluswitch-native/ic_bluswitch_mono.xml", icon_dir / "ic_bluswitch_mono.xml")
+(icon_dir / "ic_launcher_monochrome.xml").write_text('''<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_bluswitch_mono" />
+</layer-list>
+''')
+ET.parse(icon_dir / "ic_launcher_monochrome.xml")
 launcher_fg = icon_dir / "ic_launcher_foreground.xml"
 launcher_fg.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
@@ -192,6 +199,7 @@ launcher_fg.write_text('''<?xml version="1.0" encoding="utf-8"?>
 ''')
 ET.parse(launcher_fg)
 ET.parse(icon_dir / "ic_bluswitch.xml")
+ET.parse(icon_dir / "ic_bluswitch_mono.xml")
 for mode in ("values", "values-night"):
     color_path = app / f"src/main/res/{mode}/colors.xml"
     colors = color_path.read_text()
