@@ -106,6 +106,8 @@ jobs:
             echo "::warning::Upstream clone interrupted; retrying attempt $((attempt + 1))"
             sleep $((attempt * 10))
           done
+      - name: Apply reviewed native Vulkan cache fixes
+        run: python3 scripts/apply-native-cache-fixes.py nx2-source
       - name: Verify Eden native game launch contract
         run: |
           python3 - <<'PY'

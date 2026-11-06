@@ -1,0 +1,141 @@
+diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+index 16d059b..efaf81d 100644
+--- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+@@ -680,6 +680,12 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
+ }
+ 
+ PipelineCache::~PipelineCache() {
++    // Translations enqueue driver builds and cache writes. Drain them in dependency order
++    // before saving the final cache or destroying the pipelines those builds reference.
++    translation_workers.WaitForRequests();
++    AdoptTranslatedGraphicsPipelines();
++    workers.WaitForRequests();
++    serialization_thread.WaitForRequests();
+     if (use_vulkan_pipeline_cache && !vulkan_pipeline_cache_filename.empty()) {
+         SerializeVulkanPipelineCache(vulkan_pipeline_cache_filename, vulkan_pipeline_cache,
+                                      CACHE_VERSION);
+@@ -733,6 +739,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
+         return;
+     }
+     if (!pipeline_cache_filename.empty()) {
++        translation_workers.WaitForRequests();
++        AdoptTranslatedGraphicsPipelines();
++        workers.WaitForRequests();
+         serialization_thread.WaitForRequests();
+         if (use_vulkan_pipeline_cache && !vulkan_pipeline_cache_filename.empty()) {
+             SerializeVulkanPipelineCache(vulkan_pipeline_cache_filename, vulkan_pipeline_cache,
+@@ -765,9 +774,25 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
+     if (device.IsKhrPipelineExecutablePropertiesEnabled()) {
+         state.statistics = std::make_unique<PipelineStatistics>(device);
+     }
++    // Only the loader thread touches these sets. Workers insert into the live caches.
++    ::Common::unordered_set<ComputePipelineCacheKey> queued_compute;
++    ::Common::unordered_set<GraphicsPipelineCacheKey> queued_graphics;
++    for (const auto& [key, pipeline] : compute_cache) {
++        if (pipeline) {
++            queued_compute.insert(key);
++        }
++    }
++    for (const auto& [key, pipeline] : graphics_cache) {
++        if (pipeline) {
++            queued_graphics.insert(key);
++        }
++    }
+     const auto load_compute{[&](std::ifstream& file, FileEnvironment env) {
+         ComputePipelineCacheKey key;
+         file.read(reinterpret_cast<char*>(&key), sizeof(key));
++        if (!queued_compute.insert(key).second) {
++            return;
++        }
+ 
+         workers.QueueWork([this, key, env_ = std::move(env), &state, &callback]() mutable {
+             const PipelineStats::ScopedRole stats_role{PipelineStats::Role::Boot};
+@@ -816,6 +841,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
+             return;
+         }
+ 
++        if (!queued_graphics.insert(key).second) {
++            return;
++        }
++
+         workers.QueueWork([this, key, envs_ = std::move(envs), &state, &callback]() mutable {
+             const PipelineStats::ScopedRole stats_role{PipelineStats::Role::Boot};
+             ShaderPools pools;
+@@ -1654,27 +1683,38 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
+ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& filename,
+                                                  const vk::PipelineCache& pipeline_cache,
+                                                  u32 cache_version) try {
+-    // Written beside the cache and renamed over it: the emulator stopped mid-write left the cache
+-    // empty, and every later boot failed to read it.
+-    auto temporary = filename;
+-    temporary += ".tmp";
+-    std::ofstream file(temporary, std::ios::binary);
+-    file.exceptions(std::ifstream::failbit);
+-    if (!file.is_open()) {
+-        LOG_ERROR(Common_Filesystem, "Failed to open Vulkan driver pipeline cache file {}",
+-                  Common::FS::PathToUTF8String(filename));
+-        return;
+-    }
+-    file.write(VULKAN_CACHE_MAGIC_NUMBER.data(), VULKAN_CACHE_MAGIC_NUMBER.size())
+-        .write(reinterpret_cast<const char*>(&cache_version), sizeof(cache_version));
+-
++    // Snapshot before opening the temporary file. A failed read must not replace a valid cache.
+     size_t cache_size = 0;
+     std::vector<char> cache_data;
+     if (pipeline_cache) {
+-        pipeline_cache.Read(&cache_size, nullptr);
++        const VkResult size_result = pipeline_cache.Read(&cache_size, nullptr);
++        if (size_result != VK_SUCCESS) {
++            LOG_ERROR(Render_Vulkan, "Failed to query Vulkan pipeline cache size: {}",
++                      static_cast<int>(size_result));
++            return;
++        }
+         cache_data.resize(cache_size);
+-        pipeline_cache.Read(&cache_size, cache_data.data());
++        const VkResult data_result = pipeline_cache.Read(&cache_size, cache_data.data());
++        if (data_result != VK_SUCCESS) {
++            // VK_INCOMPLETE is possible while driver compilation grows the cache.
++            // Keep the previous snapshot and try again at the next scheduled flush.
++            LOG_WARNING(Render_Vulkan, "Vulkan pipeline cache snapshot deferred: {}",
++                        static_cast<int>(data_result));
++            return;
++        }
+     }
++
++    auto temporary = filename;
++    temporary += ".tmp";
++    SCOPE_EXIT {
++        std::error_code error;
++        std::filesystem::remove(temporary, error);
++    };
++    std::ofstream file;
++    file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
++    file.open(temporary, std::ios::binary | std::ios::trunc);
++    file.write(VULKAN_CACHE_MAGIC_NUMBER.data(), VULKAN_CACHE_MAGIC_NUMBER.size())
++        .write(reinterpret_cast<const char*>(&cache_version), sizeof(cache_version));
+     file.write(cache_data.data(), cache_size);
+     file.close();
+     std::error_code error;
+@@ -1682,7 +1722,6 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
+     if (error) {
+         LOG_ERROR(Common_Filesystem, "Failed to replace Vulkan driver pipeline cache file {}: {}",
+                   Common::FS::PathToUTF8String(filename), error.message());
+-        std::filesystem::remove(temporary, error);
+         return;
+     }
+ 
+@@ -1690,11 +1729,8 @@ void PipelineCache::SerializeVulkanPipelineCache(const std::filesystem::path& fi
+              Common::FS::PathToUTF8String(filename));
+ 
+ } catch (const std::ios_base::failure& e) {
+-    LOG_ERROR(Common_Filesystem, "{}", e.what());
+-    if (!Common::FS::RemoveFile(filename)) {
+-        LOG_ERROR(Common_Filesystem, "Failed to delete Vulkan driver pipeline cache file {}",
+-                  Common::FS::PathToUTF8String(filename));
+-    }
++    LOG_ERROR(Common_Filesystem, "Failed to save Vulkan driver pipeline cache; keeping previous "
++                                 "snapshot: {}", e.what());
+ }
+ 
+ vk::PipelineCache PipelineCache::LoadVulkanPipelineCache(const std::filesystem::path& filename,
