@@ -1,11 +1,6 @@
 name: BluSwitch 2.0 | experimental Switch 2 engine (isolated)
-# One user-authorised push build. Revert to manual-only after first run starts.
+# Manual-only: never start a full engine build on source pushes.
 on:
-  push:
-    branches:
-      - bluswitch2-v2-independent
-    paths:
-      - 'BluSwitch2-v2/.authorised-switch2-build'
   workflow_dispatch:
 
 concurrency:
