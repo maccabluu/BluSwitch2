@@ -53,7 +53,10 @@ replace_once(
 # routes unprepared games to native Prepare, not the native runtime.
 badge = """ '<span class="game-prep-state '+(g.ready?'ready':g.preparable?'needs-prep':'unsupported')+'">'+safe(g.status||'Needs preparing')+'</span>'+ """
 before_badge = """ '<button class="game-check" aria-label="Manage '+safe(g.title)+'" onclick="BluSwitch.diagnose('+g.index+')">Manage</button>'+ """
-assert js.count(before_badge) == 1
+# Upstream line has no trailing whitespace; match the stable JS fragment only.
+before_badge = before_badge.strip()
+badge = badge.strip()
+assert js.count(before_badge) == 1, "Expected one Manage button after changing Check boot to Manage"
 js = js.replace(before_badge, badge + before_badge, 1)
 # Put Prepare above the cover button on the page and leave Manage accessible.
 js = js.replace(before_badge,
