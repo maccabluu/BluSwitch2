@@ -1,31 +1,5 @@
 name: BluSwitch 2 Native Android
 on:
-  push:
-    branches:
-      - main
-      - bluswitch2-eden-library-repair
-      - bluswitch2-original-ui
-      - bluswitch2-ingame-library-persistence
-      - bluswitch2-core-repair-isolated
-      - bluswitch2-container-loader-research
-      - bluswitch2-settings-hub
-      - bluswitch2-remove-eden-controller
-    paths:
-      - 'bluswitch-ui/**'
-      - 'scripts/apply-ui.py'
-      - 'scripts/verify-navigation.cjs'
-      - 'scripts/verify-bluswitch-folder.cjs'
-      - 'scripts/verify-emulation-library.cjs'
-      - 'scripts/verify-container-inspector.cjs'
-      - 'scripts/brand-ingame.py'
-      - 'scripts/fix-gamehelper.py'
-      - 'scripts/fix-eden-launch-args.py'
-      - 'scripts/brand-settings.py'
-      - 'scripts/verify-settings-gameplay.cjs'
-      - 'scripts/rebrand-visible.py'
-      - 'scripts/verify-branding-controller.cjs'
-      - 'scripts/verify-branding-fixtures.py'
-      - '.github/workflows/bluswitch2-native-android.yml'
   workflow_dispatch:
 
 concurrency:
