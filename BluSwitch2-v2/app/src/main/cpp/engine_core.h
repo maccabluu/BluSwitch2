@@ -15,6 +15,8 @@ public:
     explicit GuestMemory(uint64_t base, std::size_t size);
     bool load32(uint64_t address, uint32_t& output) const;
     bool store32(uint64_t address, uint32_t value);
+    bool load64(uint64_t address, uint64_t& output) const;
+    bool store64(uint64_t address, uint64_t value);
 private:
     bool valid(uint64_t address, std::size_t count) const;
     const uint64_t base_;
@@ -22,10 +24,10 @@ private:
 };
 
 // A proof-of-concept AArch64 instruction interpreter, not a game-ready CPU.
-// Initial instructions: MOVZ, ADD (immediate), NOP and RET.
+// Prototype: MOVZ/MOVK/MOVN, ADD/SUB, LDR/STR64, B/BL, CBZ/CBNZ, NOP, RET.
 class A64Cpu {
 public:
-    explicit A64Cpu(const GuestMemory& memory);
+    explicit A64Cpu(GuestMemory& memory);
     void reset(uint64_t start);
     bool run(unsigned max_steps);
     uint64_t registerValue(unsigned index) const;
@@ -33,7 +35,8 @@ public:
     const std::string& failure() const;
 private:
     bool step();
-    const GuestMemory& memory_;
+    GuestMemory& memory_;
+    uint64_t sp_{0};
     std::array<uint64_t, 31> x_{};
     uint64_t pc_{0};
     bool halted_{false};

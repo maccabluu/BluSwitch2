@@ -40,3 +40,10 @@ Licence: GPL-3.0-or-later.
 ## Independent native engine work
 
 The new `engine_core.cpp` now contains **untested** original ARM64 decoder and bounded guest-memory source, with a synthetic three-instruction test available from the home screen. This is a small real CPU execution experiment, **not Switch 2 gameplay**. See [native architecture](docs/native-engine-architecture.md).
+
+
+## Independent CPU improvements and isolated test build
+
+Experimental AArch64 interpreter includes MOVZ, MOVK, MOVN, 64-bit ADD/SUB immediate, load/store of 64-bit guest values, B/BL, CBZ/CBNZ, NOP and RET. There are still no Switch 2 system services, GPU execution, full game loading or working Switch 2 games.
+
+`tests/test_engine_core.cpp` checks arithmetic, memory bounds, branching and failure behaviour using synthetic instructions. The branch-specific GitHub Actions workflow compiles these tests before building a **separate** debug APK for `com.blustudio.bluswitch2.v2`. The workflow does not build the original BluSwitch2 application or its Eden core. A successful APK build proves the project shell compiles, not Switch 2 game compatibility.

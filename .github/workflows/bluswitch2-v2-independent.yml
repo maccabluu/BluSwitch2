@@ -1,0 +1,53 @@
+name: BluSwitch 2.0 independent prototype
+on:
+  push:
+    branches:
+      - bluswitch2-v2-independent
+    paths:
+      - 'BluSwitch2-v2/**'
+      - '.github/workflows/bluswitch2-v2-independent.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile synthetic native CPU tests
+        working-directory: BluSwitch2-v2
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -Iapp/src/main/cpp \
+            app/src/main/cpp/engine_core.cpp tests/test_engine_core.cpp \
+            -o /tmp/bluswitch2-v2-tests
+          /tmp/bluswitch2-v2-tests
+
+  isolated-apk:
+    needs: native-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android packages for the new app
+        run: |
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Build only BluSwitch 2.0 debug APK
+        working-directory: BluSwitch2-v2
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Upload separate BluSwitch 2.0 test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BluSwitch2-v2-independent-debug
+          path: BluSwitch2-v2/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
