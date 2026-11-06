@@ -1,11 +1,6 @@
 name: BluSwitch 2.0 independent prototype
-# One-off push trigger for this user-authorised build only.
+# Manual runs only. No automatic APK builds.
 on:
-  push:
-    branches:
-      - bluswitch2-v2-independent
-    paths:
-      - 'BluSwitch2-v2/.build-authorised-20261106'
   workflow_dispatch:
 
 permissions:
