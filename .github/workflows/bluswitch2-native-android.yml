@@ -101,6 +101,10 @@ jobs:
             echo "::warning::Upstream clone interrupted; retrying attempt $((attempt + 1))"
             sleep $((attempt * 10))
           done
+      - name: Apply and verify native Vulkan cache fixes
+        run: |
+          python3 scripts/verify-native-cache-fixes.py nx2-source
+          python3 scripts/apply-native-cache-fixes.py nx2-source
       - name: Verify Eden native game launch contract
         run: |
           python3 - <<'PY'
@@ -203,6 +207,24 @@ jobs:
           # the changed BluSwitch2 UI and Java/Kotlin code into one signed APK.
           ./gradlew --no-daemon --no-parallel --max-workers=2 -PYUZU_ANDROID_ARGS="-DGLSLANGVALIDATOR=$(command -v glslangValidator) -DCMAKE_C_COMPILER_LAUNCHER=$(command -v ccache) -DCMAKE_CXX_COMPILER_LAUNCHER=$(command -v ccache)" :app:assembleMainlineDebug 2>&1 | tee "$GITHUB_WORKSPACE/compile.log"
           ccache --show-stats
+      - name: Verify update package, version and signing identity
+        run: |
+          set -euo pipefail
+          APK=$(find nx2-source/src/android/app/build/outputs/apk/mainline/debug -name '*.apk' -print -quit)
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK" > apk-signing.txt
+          grep -qi 'Signer #1 certificate SHA-256 digest: 9d09b2001be0dde93ea0444c536b72270fab3eb1a2fccfd56e1a3c46cc0d7af1' apk-signing.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > apk-badging.txt
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path('apk-badging.txt').read_text()
+          package = re.search(r"package: name='([^']+)' versionCode='(\d+)'", text)
+          assert package and package.group(1) == 'dev.eden.nx2.debug', 'Existing installed package must be preserved'
+          assert int(package.group(2)) > 34236209, 'Update version must exceed the previous APK'
+          assert 'BluSwitch 2' in text, 'BluSwitch branding missing'
+          print('Verified same package and signer with a newer update version')
+          PY
       - name: Confirm APK contains native emulator libraries
         run: |
           python3 - <<'PY'
@@ -216,18 +238,18 @@ jobs:
               assert 'AndroidManifest.xml' in names
               assert any(n.startswith('classes') and n.endswith('.dex') for n in names)
               assert any(n.startswith('lib/arm64-v8a/') and n.endswith('.so') for n in names), 'No ARM64 native libraries in APK'
-          dest=Path('BluSwitch2-Experimental-Android.apk')
+          dest=Path('BluSwitch2-Native-Cache-Update.apk')
           shutil.copy2(p,dest)
-          Path('BluSwitch2-Experimental-Android.apk.sha256').write_text(hashlib.sha256(dest.read_bytes()).hexdigest()+'  '+dest.name+'\n')
+          Path('BluSwitch2-Native-Cache-Update.apk.sha256').write_text(hashlib.sha256(dest.read_bytes()).hexdigest()+'  '+dest.name+'\n')
           print('Verified native ARM64 libraries in '+str(dest))
           PY
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: BluSwitch2-Experimental-Android
+          name: BluSwitch2-Native-Cache-Update
           path: |
-            BluSwitch2-Experimental-Android.apk
-            BluSwitch2-Experimental-Android.apk.sha256
+            BluSwitch2-Native-Cache-Update.apk
+            BluSwitch2-Native-Cache-Update.apk.sha256
           retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()
