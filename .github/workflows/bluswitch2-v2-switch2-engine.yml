@@ -1,10 +1,10 @@
-name: BluSwitch 2.0 | experimental Switch 2 engine (isolated)
+name: BluSwitch Unified | one Android app
 # Manual-only: never start a full engine build on source pushes.
 on:
   workflow_dispatch:
 
 concurrency:
-  group: bluswitch-v2-switch2-${{ github.ref }}
+  group: bluswitch-unified-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -115,7 +115,7 @@ jobs:
           root = Path('nx2-source/src/android/app')
           gradle = root / 'build.gradle.kts'
           g = gradle.read_text()
-          g, n = re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"', lambda m:m.group(1)+'"com.blustudio.bluswitch2.v2"',g,count=1)
+          g, n = re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"', lambda m:m.group(1)+'"uk.co.blustudio.bluswitch2"',g,count=1)
           assert n == 1, "Upstream Gradle app ID layout changed"
           g = re.sub(r'(appNameBase"\s+to\s+)"Eden(?: [^"]*)?"', lambda m:m.group(1)+'"BluSwitch 2"',g)
           g = g.replace('"Eden$suffix"','"BluSwitch 2.0$suffix"')
@@ -150,6 +150,7 @@ jobs:
           python3 scripts/brand-settings.py nx2-source
           python3 scripts/rebrand-visible.py nx2-source
           python3 scripts/fix-gamehelper.py nx2-source
+          python3 BluSwitch2-v2/unified/merge.py nx2-source
           test -f nx2-source/src/android/app/src/main/res/values/bluswitch_ingame_colors.xml
           test -f nx2-source/src/android/app/src/main/java/org/yuzu/yuzu_emu/ui/main/BluSwitchHomeActivity.kt
           test -f nx2-source/src/android/app/src/main/assets/bluswitch/index.html
@@ -165,6 +166,20 @@ jobs:
           cp -R "$RUNNER_TEMP/sdl3-source/android-project/app/src/main/java/." "$DEST/"
           test -s "$DEST/org/libsdl/app/SDL.java"
           echo "SDL3 Android bindings copied: $(find "$DEST/org/libsdl/app" -name '*.java' | wc -l) Java files"
+      - name: Embed original ARM64 guest interpreter into the full-engine APK
+        run: |
+          set -euo pipefail
+          SRC="BluSwitch2-v2/app/src/main/cpp"
+          DEST="nx2-source/src/android/app/src/main/jniLibs/arm64-v8a"
+          mkdir -p "$DEST"
+          "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++" \
+            -std=c++17 -O2 -Wall -Wextra -Werror -fPIC -shared -static-libstdc++ \
+            -I"$SRC" "$SRC/engine_core.cpp" "$SRC/elf_loader.cpp" "$SRC/game_demo.cpp" \
+            BluSwitch2-v2/unified/native_bridge.cpp \
+            -o "$DEST/libblu_guest_core.so"
+          test -s "$DEST/libblu_guest_core.so"
+      - name: Check unified package and all included features
+        run: python3 BluSwitch2-v2/unified/verify.py nx2-source
       - name: Build ARM64 native Android APK
         run: |
           set -euo pipefail
@@ -187,22 +202,24 @@ jobs:
               assert 'AndroidManifest.xml' in names
               assert any(n.startswith('classes') and n.endswith('.dex') for n in names)
               assert any(n.startswith('lib/arm64-v8a/') and n.endswith('.so') for n in names), 'No ARM64 native libraries in APK'
-          dest=Path('BluSwitch2-v2-Switch2-Experimental-Android.apk')
+              assert 'lib/arm64-v8a/libblu_guest_core.so' in names, 'ARM64 guest demo library missing'
+              assert 'assets/bluswitch/index.html' in names, 'BluSwitch console UI missing'
+          dest=Path('BluSwitch2-Unified-Android.apk')
           shutil.copy2(p,dest)
-          Path('BluSwitch2-v2-Switch2-Experimental-Android.apk.sha256').write_text(hashlib.sha256(dest.read_bytes()).hexdigest()+'  '+dest.name+'\n')
+          Path('BluSwitch2-Unified-Android.apk.sha256').write_text(hashlib.sha256(dest.read_bytes()).hexdigest()+'  '+dest.name+'\n')
           print('Verified native ARM64 libraries in '+str(dest))
           PY
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: BluSwitch2-v2-Switch2-Experimental-Android
+          name: BluSwitch2-Unified-Android
           path: |
-            BluSwitch2-v2-Switch2-Experimental-Android.apk
-            BluSwitch2-v2-Switch2-Experimental-Android.apk.sha256
+            BluSwitch2-Unified-Android.apk
+            BluSwitch2-Unified-Android.apk.sha256
           retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: BluSwitch2-v2-Switch2-Compiler-Log
+          name: BluSwitch2-Unified-Compiler-Log
           path: compile.log
           if-no-files-found: ignore

@@ -65,3 +65,9 @@ This is an original educational game within the emulator, **not** Switch 2 homeb
 ## Experimental full Switch 2 game engine
 
 See [integration notes](docs/full-switch2-engine.md) and the independent `.github/workflows/bluswitch2-v2-switch2-engine.yml` workflow. This source-based build uses an experimental GPL-licensed game engine that may attempt to boot supported extracted Switch 2 content. It is distinct from the scratch-built CPU test program, and no individual Switch 2 game is guaranteed to boot or be playable.
+
+## One unified BluSwitch application
+
+The full native Switch 2 experimental engine and the original 3x3 guest ARM64 treasure game are merged into **one** APK. It has the original BluSwitch 2 Android ID `uk.co.blustudio.bluswitch2`, and BluSwitch 2.0 branding throughout its UI. The ARM64 CPU and ELF tests are available from the Files screen. Original BluSwitch saves and preferences are not changed by this source update.
+
+The unified build replaces the separate experimental APK output. An existing installation still requires matching APK signing certificates for an in-place update. **Back up the existing app's saves before any uninstall.** No game compatibility or faster boot is guaranteed.
