@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.widget.Button;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
@@ -119,9 +120,25 @@ final class MiniGameDialog {
             render.run();
         });
         render.run();
-        new AlertDialog.Builder(activity)
+        AlertDialog dialog=new AlertDialog.Builder(activity)
                 .setView(content)
                 .setNegativeButton("Close",null)
-                .show();
+                .create();
+        dialog.setOnKeyListener((d,keyCode,event)->{
+            if(event.getAction()!=KeyEvent.ACTION_DOWN)return false;
+            int index=-1;
+            switch(keyCode) {
+                case KeyEvent.KEYCODE_DPAD_LEFT: index=0;break;
+                case KeyEvent.KEYCODE_DPAD_UP: index=1;break;
+                case KeyEvent.KEYCODE_DPAD_DOWN: index=2;break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: index=3;break;
+                case KeyEvent.KEYCODE_BUTTON_START:
+                    again.performClick();return true;
+                default:return false;
+            }
+            if(index>=0&&directions[index].isEnabled())directions[index].performClick();
+            return true;
+        });
+        dialog.show();
     }
 }
