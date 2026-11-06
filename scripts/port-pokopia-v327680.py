@@ -29,7 +29,7 @@ def change(old: str, new: str, label: str) -> None:
 
 change(
     "build\tv655360\tv655360\tmain=76a489f3bd3642fa5e18bd83d32c98ba\tsubsdk0=9646a69cb1024ba919fddaa4265e6bc5\tsdk=cc7da00d672399efe7958790d17fae39",
-    "build\tv327680\t2.0.0\tmain=816c5358e8178d802fcec4a7ce5a741a\tsubsdk0=9646a69cb1024ba919fddaa4265e6bc5\tsdk=cc7da00d672399efe7958790d17fae39",
+    "build\tv327680\tv327680\tmain=816c5358e8178d802fcec4a7ce5a741a\tsubsdk0=9646a69cb1024ba919fddaa4265e6bc5\tsdk=cc7da00d672399efe7958790d17fae39",
     "Pokopia build ID",
 )
 change("package\tv655360", "package\tv327680", "default package")
