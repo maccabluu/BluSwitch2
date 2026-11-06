@@ -44,7 +44,11 @@ assert(invocations.some(([k,v])=>k==='browseUserFiles' && v===''), 'BluSwitch da
 assert(!invocations.some(([k,v])=>k==='openSetting' && v==='data-folder'), 'Open BluSwitch folder must never launch external Eden DocumentsUI');
 window.BluSettings.select('folders');
 assert(nodes['main-view'].innerHTML.includes('Game files'), 'Game folders did not open Files');
-assert(nodes['main-view'].innerHTML.includes('Folder · Launch Switch 2 game'), 'Loose game launch missing');
+assert(nodes['main-view'].innerHTML.includes('Add Switch 2 game'), 'Loose game launch missing');
 window.BluSwitch.launchExeFSFolder();
 assert(invocations.some(([k])=>k==='launchExeFSFolder'), 'ExeFS launcher not connected to native picker');
+assert(nodes['main-view'].innerHTML.includes('Homebrew Store'), 'Keep the existing store accessible from Files after compacting the dock');
+window.BluSwitch.open('store');
+assert(nodes['main-view'].innerHTML.includes('Homebrew Store'), 'Store page must still be reachable');
+window.BluSwitch.open('files');
 console.log('PASS settings native actions, UI routes, real ExeFS launcher and no Eden home redirects');
