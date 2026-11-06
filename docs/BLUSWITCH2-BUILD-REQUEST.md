@@ -7,3 +7,5 @@ Trigger the signed Android release workflow for the established `dev.nxnative.an
 Retry 2: stable Gradle signingConfig assignment corrected; use the SAME BluSwitch2 package ID and GitHub secrets.
 
 Android installation compatibility audit: verify apksigner signature and zip alignment before release.
+
+Installer compatibility rebuild: explicitly sign with v1, v2 and v3 using the existing permanent key.
